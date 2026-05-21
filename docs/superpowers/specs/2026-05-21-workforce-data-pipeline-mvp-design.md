@@ -1,141 +1,141 @@
-# Workforce Data Pipeline MVP Design
+# Workforce 데이터 파이프라인 MVP 설계
 
-## 1. Purpose
+## 1. 목적
 
-This document defines the first implementation slice of Workforce OS: a management-console-centered MVP for collecting worker attendance, importing daily assignments from a fixed Excel format, and accumulating per-task work experience.
+이 문서는 Workforce OS의 첫 번째 구현 범위를 정의한다. 이번 범위는 관리자 콘솔 중심의 MVP로, 인력 출근 등록, 고정 양식 엑셀 기반 일일 배정 업로드, 작업별 경험 누적 구조를 만드는 데 집중한다.
 
-The goal of this MVP is to replace memory- and spreadsheet-only operations with a single internal system that preserves the current field workflow while producing reliable structured data for later recommendation and monitoring features.
+이 MVP의 목표는 기존의 기억 의존 및 엑셀 중심 운영을 하나의 내부 시스템으로 옮기되, 현장의 업무 순서는 유지하면서 이후 추천 배정과 운영 모니터링에 사용할 수 있는 신뢰 가능한 구조화 데이터를 만드는 것이다.
 
-## 2. MVP Goal
+## 2. MVP 목표
 
-The MVP must allow an authenticated manager to:
+이 MVP는 인증된 관리자가 다음을 수행할 수 있어야 한다.
 
-- log in to the internal console
-- register today's attendance
-- create a new worker during attendance registration when needed
-- upload a fixed-format Excel assignment sheet
-- save daily assignments for attended workers
-- accumulate per-worker task experience counts
-- search workers by phone number and review recent work history
+- 내부 운영 콘솔에 로그인한다.
+- 오늘 출근 인력을 등록한다.
+- 필요한 경우 출근 등록 과정에서 신규 인력을 생성한다.
+- 고정 양식의 엑셀 배정표를 업로드한다.
+- 오늘 출근한 인력의 일일 배정 기록을 저장한다.
+- 인력별 작업 경험 횟수를 누적한다.
+- 전화번호로 인력을 조회하고 최근 작업 이력을 확인한다.
 
-## 3. Non-Goals
+## 3. 비목표
 
-This MVP explicitly does not include:
+이번 MVP에는 아래 기능을 포함하지 않는다.
 
-- automatic assignment decisions
-- recommendation ranking UI
-- real-time operational headcount dashboard
-- payroll or settlement features
-- mobile app flows
-- worker-facing permissions or self-service screens
+- 자동 배정 확정
+- 추천 순위 UI
+- 실시간 운영 인원 현황 대시보드
+- 급여 및 정산 기능
+- 모바일 앱 흐름
+- 작업자용 권한 또는 셀프 서비스 화면
 
-Those features are intentionally deferred so that the first release can focus on producing correct attendance, assignment, and skill-history data.
+이 기능들은 의도적으로 뒤 단계로 미루고, 첫 릴리스는 출근, 배정, 경험 데이터의 정확한 축적에 집중한다.
 
-## 4. Product Boundaries
+## 4. 제품 범위
 
-This system starts as a manager-only internal web console built with Next.js and Supabase.
+이 시스템은 Next.js와 Supabase를 사용하는 관리자 전용 내부 웹 콘솔로 시작한다.
 
-Operational flow for the MVP:
+MVP의 운영 흐름은 다음과 같다.
 
-1. The manager logs in.
-2. The manager registers today's attending workers.
-3. New workers, if needed, are created from the attendance screen and marked present for the day.
-4. The manager uploads the daily assignment Excel file.
-5. The system validates the entire file.
-6. If validation succeeds, the system saves assignments and increments worker skill counts atomically.
-7. The manager reviews worker history and task experience through search.
+1. 관리자가 로그인한다.
+2. 관리자가 오늘 출근 인력을 등록한다.
+3. 필요한 경우 출근 등록 화면에서 신규 인력을 만들고 동시에 오늘 출근 처리한다.
+4. 관리자가 일일 배정 엑셀 파일을 업로드한다.
+5. 시스템이 파일 전체를 검증한다.
+6. 검증이 모두 통과하면 배정 기록 저장과 작업 경험 누적을 원자적으로 반영한다.
+7. 관리자가 전화번호 조회를 통해 인력 이력과 경험 정보를 확인한다.
 
-This preserves the existing operational order rather than forcing the field team into a new process.
+이 구조는 현장 운영 순서를 바꾸지 않고 시스템화하는 것을 전제로 한다.
 
-## 5. Core Decisions Confirmed
+## 5. 확정된 핵심 결정
 
-The following decisions were confirmed during brainstorming and are binding for this MVP:
+브레인스토밍 과정에서 아래 결정들이 확정되었으며, 이번 MVP에서는 이를 고정 규칙으로 사용한다.
 
-- The first subproject is the data pipeline MVP only.
-- The app uses real Supabase integration from the beginning.
-- The app includes manager login.
-- Attendance is registered before Excel upload.
-- Excel upload reflects assignment data only.
-- New workers are created from the attendance screen, not from Excel upload.
-- The upload supports one fixed Excel format only.
-- If any row fails validation, the entire upload fails.
-- The MVP assumes one worker can have only one assignment per day.
-- Worker lookup is phone-number based.
+- 첫 번째 서브프로젝트는 데이터 파이프라인 MVP다.
+- 처음부터 실제 Supabase를 연결한다.
+- 관리자 로그인 기능을 포함한다.
+- 출근 등록을 엑셀 업로드보다 먼저 수행한다.
+- 엑셀 업로드는 배정 데이터만 반영한다.
+- 신규 인력 생성은 출근 등록 화면에서만 수행한다.
+- 업로드는 고정 양식 1개만 지원한다.
+- 한 줄이라도 검증 실패가 있으면 전체 업로드를 실패 처리한다.
+- 한 사람은 하루에 하나의 업무만 가진다고 가정한다.
+- 인력 조회의 기준 식별자는 전화번호다.
 
-## 6. Architecture
+## 6. 아키텍처
 
-### 6.1 High-Level Shape
+### 6.1 전체 구조
 
-The MVP uses a management-console-centered architecture:
+이 MVP는 관리자 콘솔 중심 아키텍처를 사용한다.
 
-- Next.js App Router frontend
-- Supabase Auth for manager login
-- Supabase Postgres as the system of record
-- server-side domain actions for attendance, upload validation, assignment creation, and history queries
-- SheetJS (`xlsx`) for Excel parsing
+- Next.js App Router 기반 프론트엔드
+- Supabase Auth 기반 관리자 로그인
+- Supabase Postgres 기반 데이터 저장소
+- 출근 등록, 업로드 검증, 배정 생성, 이력 조회를 처리하는 서버 측 도메인 액션
+- 엑셀 파싱을 위한 SheetJS(`xlsx`)
 
-The frontend should remain thin. Domain rules must live on the server side so that validation, persistence, and future API reuse stay consistent.
+프론트엔드는 가능한 얇게 유지하고, 핵심 운영 규칙은 서버 쪽에서 관리한다. 그래야 검증, 저장, 이후 API 재사용 시 일관성을 유지할 수 있다.
 
-### 6.2 Why This Shape
+### 6.2 이 구조를 선택한 이유
 
-This structure is the fastest path to a usable internal tool while keeping room for future expansion. It avoids prematurely optimizing for external consumers, but it still creates clean server-side boundaries so that recommendation and monitoring features can be added without rewriting the data layer.
+이 구조는 내부 운영 도구를 가장 빠르게 실사용 가능한 형태로 만드는 데 적합하다. 외부 시스템 연동을 과하게 먼저 고려하지 않으면서도, 서버 경계를 분명히 두기 때문에 이후 추천 배정이나 운영 모니터링 기능을 추가할 때 데이터 레이어를 다시 뜯어고칠 가능성이 줄어든다.
 
-## 7. Screens
+## 7. 화면 구성
 
-### 7.1 Login
+### 7.1 로그인 화면
 
-Purpose:
+목적:
 
-- authenticate managers
-- block unauthenticated access to the console
+- 관리자 인증
+- 비로그인 사용자의 콘솔 접근 차단
 
-### 7.2 Today Operations
+### 7.2 오늘 운영 화면
 
-Purpose:
+목적:
 
-- serve as the daily entry point
-- show today's attendance count
-- show whether an upload has been completed today
-- link to attendance, upload, and worker lookup flows
+- 당일 운영의 시작 화면 역할 수행
+- 오늘 출근 인원 수 표시
+- 오늘 업로드 반영 여부 표시
+- 출근 등록, 업로드, 인력 조회 화면으로 이동하는 진입점 제공
 
-This is not yet the operational monitoring dashboard. It is a lightweight start page.
+이 화면은 아직 운영 모니터링 대시보드가 아니라, 가벼운 일일 시작 화면이다.
 
-### 7.3 Attendance Registration
+### 7.3 출근 등록 화면
 
-Purpose:
+목적:
 
-- mark existing workers as present for the selected day
-- create a new worker and mark them present in one flow
-- display today's attendance list
+- 기존 인력을 선택해 오늘 출근 처리
+- 신규 인력을 생성하면서 동시에 오늘 출근 처리
+- 오늘 출근자 목록 표시
 
-This screen is the only place in the MVP where new workers are created.
+이번 MVP에서 신규 인력을 생성하는 유일한 화면은 이 출근 등록 화면이다.
 
-### 7.4 Excel Upload
+### 7.4 엑셀 업로드 화면
 
-Purpose:
+목적:
 
-- accept one fixed-format assignment file
-- validate all rows before any write occurs
-- display success or row-level failure reasons
+- 고정 양식의 배정 파일 업로드
+- 모든 행을 저장 전에 먼저 검증
+- 성공 결과 또는 행 단위 실패 사유 표시
 
-This screen is the only assignment input channel in the MVP.
+이번 MVP에서 배정을 입력하는 유일한 채널은 이 업로드 화면이다.
 
-### 7.5 Worker Search and Detail
+### 7.5 인력 조회 및 상세 화면
 
-Purpose:
+목적:
 
-- search workers by phone number
-- show worker identity details
-- show recent assignment history
-- show task experience counts
+- 전화번호 기반 인력 검색
+- 인력 기본 정보 표시
+- 최근 작업 이력 표시
+- 업무별 경험 횟수 표시
 
-## 8. Domain Model
+## 8. 도메인 모델
 
 ### 8.1 `workers`
 
-Stores worker identity records.
+반복 근무 인력의 기본 정보를 저장한다.
 
-Fields:
+필드:
 
 - `id`
 - `name`
@@ -143,54 +143,54 @@ Fields:
 - `created_at`
 - `updated_at`
 
-Rules:
+규칙:
 
-- `phone` is unique
-- names are display-only and duplicate names are allowed
+- `phone`은 유니크해야 한다.
+- 이름은 표시용이며 동명이인을 허용한다.
 
-Status policy:
+상태 정책:
 
-- `active`, `inactive`, and `dormant` are business states
-- for the MVP, status is derived from the most recent attendance date rather than stored as a mutable column
-- this avoids stale status values and removes the need for scheduled status maintenance in the first release
+- `active`, `inactive`, `dormant`는 비즈니스 상태값이다.
+- 이번 MVP에서는 상태를 별도 저장 컬럼으로 두기보다 최근 출근일 기준으로 계산한다.
+- 이렇게 하면 상태값이 오래되어 틀어지는 문제를 줄이고, 초기 릴리스에서 별도 상태 갱신 작업을 만들지 않아도 된다.
 
 ### 8.2 `attendances`
 
-Stores daily attendance records.
+일자별 출근 기록을 저장한다.
 
-Fields:
+필드:
 
 - `id`
 - `worker_id`
 - `work_date`
 - `created_at`
 
-Rules:
+규칙:
 
-- unique constraint on `worker_id + work_date`
-- one row means the worker was available for operations that day
+- `worker_id + work_date` 유니크 제약을 둔다.
+- 한 행은 해당 인력이 그날 운영 가능한 상태였음을 의미한다.
 
 ### 8.3 `task_types`
 
-Stores supported task categories.
+지원하는 업무 카테고리 마스터를 저장한다.
 
-Fields:
+필드:
 
 - `id`
 - `code`
 - `label`
 - `created_at`
 
-Rules:
+규칙:
 
-- seeded with the agreed warehouse task list
-- Excel upload must map to an existing task type
+- PRD에 정의된 물류센터 업무 목록을 기준으로 시드 데이터를 넣는다.
+- 엑셀 업로드의 업무값은 반드시 존재하는 `task_types`와 매핑되어야 한다.
 
 ### 8.4 `assignments`
 
-Stores daily worker-to-task assignment records.
+일자별 인력 배정 기록을 저장한다.
 
-Fields:
+필드:
 
 - `id`
 - `worker_id`
@@ -199,17 +199,17 @@ Fields:
 - `source`
 - `created_at`
 
-Rules:
+규칙:
 
-- unique constraint on `worker_id + work_date`
-- `source` is set to `excel_upload` in this MVP
-- this table is the source of truth for work history
+- `worker_id + work_date` 유니크 제약을 둔다.
+- 이번 MVP에서 `source`는 `excel_upload`로 저장한다.
+- 이 테이블은 작업 이력의 기준 데이터다.
 
 ### 8.5 `worker_skills`
 
-Stores accumulated experience per worker and task.
+인력별 업무 경험 누적치를 저장한다.
 
-Fields:
+필드:
 
 - `id`
 - `worker_id`
@@ -217,223 +217,223 @@ Fields:
 - `count`
 - `updated_at`
 
-Rules:
+규칙:
 
-- unique constraint on `worker_id + task_type_id`
-- `count` increments by one for each successful assignment import for that worker and task
+- `worker_id + task_type_id` 유니크 제약을 둔다.
+- 한 인력의 특정 업무 배정이 성공적으로 업로드될 때마다 `count`를 1 증가시킨다.
 
-## 9. Excel Format
+## 9. 엑셀 포맷
 
-The MVP supports one fixed Excel format only.
+이번 MVP는 고정 양식 1개만 지원한다.
 
-Required columns:
+필수 컬럼:
 
 - `name`
 - `phone`
 - `task`
 
-Assumptions:
+전제:
 
-- one row represents one worker's assignment for one day
-- the upload is scoped to a single work date explicitly selected in the UI before submission
-- there is no per-row multi-task handling in this MVP
+- 한 행은 한 사람의 하루 한 업무 배정을 의미한다.
+- 업로드는 제출 전에 UI에서 명시적으로 선택한 하나의 `work_date`에 대해 수행된다.
+- 한 행에 여러 업무를 처리하는 구조는 이번 MVP에 포함하지 않는다.
 
-If field naming or sheet structure changes in the real operation, the team must update the agreed template before uploading. Flexible mapping is intentionally out of scope.
+현장의 실제 파일 구조나 컬럼명이 달라지면 업로드 전에 합의된 템플릿으로 맞춰야 한다. 유연한 컬럼 매핑 기능은 의도적으로 범위에서 제외한다.
 
-## 10. Upload Validation Rules
+## 10. 업로드 검증 규칙
 
-Before any database write occurs, the server must validate the entire file.
+DB에 어떤 데이터도 쓰기 전에 서버는 파일 전체를 먼저 검증해야 한다.
 
-Each row must satisfy all of the following:
+각 행은 아래 조건을 모두 만족해야 한다.
 
-- `name` is present
-- `phone` is present and normalized into a valid phone format
-- `task` is present
-- the phone number exists in `workers`
-- the uploaded name matches the existing worker name for that phone number
-- the worker has an attendance record for the selected `work_date`
-- the task exists in `task_types`
-- the same worker is not duplicated within the upload for that date
-- the worker does not already have an assignment for that date
+- `name`이 존재해야 한다.
+- `phone`이 존재해야 하고 유효한 형식으로 정규화되어야 한다.
+- `task`가 존재해야 한다.
+- 해당 전화번호가 `workers`에 존재해야 한다.
+- 업로드된 이름이 그 전화번호에 등록된 기존 인력 이름과 일치해야 한다.
+- 해당 인력은 선택된 `work_date`의 `attendances`에 존재해야 한다.
+- `task` 값이 유효한 `task_types`에 존재해야 한다.
+- 같은 날짜 기준으로 업로드 파일 안에서 동일 인력이 중복되면 안 된다.
+- 같은 날짜 기준으로 이미 `assignments`가 존재하는 인력이면 안 된다.
 
-Validation policy:
+검증 정책:
 
-- if any row fails, no assignments or skill counts are written
-- the response must include row-level error details that a manager can act on immediately
+- 한 줄이라도 실패하면 `assignments`와 `worker_skills`는 아무 것도 저장하지 않는다.
+- 응답에는 관리자가 즉시 수정할 수 있도록 행 단위 오류 이유를 포함해야 한다.
 
-## 11. Upload Processing Flow
+## 11. 업로드 처리 흐름
 
-The upload process is a domain operation, not just a file transfer.
+업로드는 단순 파일 저장이 아니라 도메인 작업으로 취급한다.
 
-Processing sequence:
+처리 순서:
 
-1. Parse the uploaded file.
-2. Normalize and validate all rows.
-3. Resolve `worker_id` by phone number.
-4. Resolve `task_type_id` by task value.
-5. Build the pending assignment set.
-6. Build the pending worker skill increments.
-7. Write assignments and skill updates in one transaction.
-8. Return a success summary.
+1. 업로드 파일을 파싱한다.
+2. 모든 행을 정규화하고 검증한다.
+3. 전화번호 기준으로 `worker_id`를 확인한다.
+4. 업무값 기준으로 `task_type_id`를 확인한다.
+5. 저장할 `assignments` 집합을 구성한다.
+6. 증가시킬 `worker_skills` 변경 집합을 구성한다.
+7. 하나의 트랜잭션 안에서 배정 저장과 경험 누적을 함께 반영한다.
+8. 성공 요약 결과를 반환한다.
 
-Atomicity rule:
+원자성 규칙:
 
-- `assignments` creation and `worker_skills` updates must succeed together or fail together
+- `assignments` 생성과 `worker_skills` 갱신은 반드시 함께 성공하거나 함께 실패해야 한다.
 
-This prevents history and experience counts from diverging.
+이 규칙은 작업 이력과 경험 누적이 서로 어긋나는 상황을 방지한다.
 
-## 12. Server Responsibilities
+## 12. 서버 책임
 
-The server layer is responsible for business correctness.
+서버 레이어는 비즈니스 정합성을 책임진다.
 
-### 12.1 Authentication
+### 12.1 인증 처리
 
-- verify logged-in manager access
-- protect all non-login routes
+- 로그인한 관리자 접근 확인
+- 로그인 외 모든 라우트 보호
 
-### 12.2 Worker Operations
+### 12.2 인력 처리
 
-- look up workers by phone number
-- create workers during attendance registration
-- return worker detail and history
+- 전화번호 기준 인력 조회
+- 출근 등록 과정에서 신규 인력 생성
+- 인력 상세 및 이력 조회 반환
 
-### 12.3 Attendance Operations
+### 12.3 출근 처리
 
-- register attendance for a specific date
-- prevent duplicate attendance rows
-- list today's attended workers
+- 특정 날짜의 출근 등록
+- 중복 출근 등록 방지
+- 오늘 출근자 목록 조회
 
-### 12.4 Upload Operations
+### 12.4 업로드 처리
 
-- parse the fixed Excel template
-- validate every row
-- enforce all-or-nothing writes
-- create assignments
-- increment worker skill counts
-- return success or structured validation failures
+- 고정 양식 엑셀 파싱
+- 모든 행 검증
+- 전체 성공 또는 전체 실패 보장
+- `assignments` 생성
+- `worker_skills` 누적 반영
+- 성공 결과 또는 구조화된 검증 실패 응답 반환
 
-## 13. Query Behavior
+## 13. 조회 동작
 
-### 13.1 Worker Lookup
+### 13.1 인력 조회
 
-Primary lookup input is phone number. Name search may be added later, but phone search is the authoritative method for avoiding duplicate identities.
+기본 조회 입력은 전화번호다. 이름 검색은 이후 추가할 수 있지만, 동명이인 문제를 피하기 위해 이번 MVP에서 권위 있는 조회 기준은 전화번호로 둔다.
 
-### 13.2 Worker Detail
+### 13.2 인력 상세
 
-Worker detail should show:
+인력 상세 화면에는 아래 정보가 보여야 한다.
 
-- name
-- phone
-- derived status based on last attendance
-- recent assignments in descending date order
-- per-task experience counts
+- 이름
+- 전화번호
+- 최근 출근일 기준으로 계산한 상태값
+- 최신 날짜 순 최근 배정 이력
+- 업무별 경험 횟수
 
-### 13.3 Today Operations Summary
+### 13.3 오늘 운영 요약
 
-The start page should show:
+시작 화면에는 아래 정보가 보여야 한다.
 
-- today's attendance count
-- whether assignment upload has been completed
-- the number of assignments imported for today
+- 오늘 출근 인원 수
+- 오늘 배정 업로드 완료 여부
+- 오늘 반영된 배정 건수
 
-## 14. Error Handling
+## 14. 에러 처리
 
-The MVP should optimize for operational clarity over permissive behavior.
+이번 MVP는 느슨한 허용보다 운영상 명확성을 우선한다.
 
-### 14.1 Attendance Errors
+### 14.1 출근 등록 에러
 
-Examples:
+예시:
 
-- duplicate attendance for the same worker and date
-- invalid phone format
-- attempt to create a worker with a duplicate phone number
+- 같은 인력에 대한 동일 날짜 중복 출근 등록
+- 잘못된 전화번호 형식
+- 이미 존재하는 전화번호로 신규 인력 생성 시도
 
-### 14.2 Upload Errors
+### 14.2 업로드 에러
 
-Examples:
+예시:
 
-- missing required columns
-- unsupported sheet structure
-- invalid phone format
-- worker not found
-- uploaded name does not match the registered worker name for that phone number
-- worker not registered in attendance for the selected date
-- unknown task type
-- duplicate worker rows in the same upload
-- existing assignment already recorded for that worker and date
+- 필수 컬럼 누락
+- 지원하지 않는 시트 구조
+- 잘못된 전화번호 형식
+- 존재하지 않는 인력
+- 등록된 전화번호와 이름 불일치
+- 해당 날짜 출근 등록이 없는 인력
+- 존재하지 않는 업무 카테고리
+- 같은 파일 안의 동일 인력 중복 행
+- 동일 날짜 기존 배정 중복
 
-Error responses must identify the row number and failure reason so that the manager can fix the source file quickly.
+에러 응답은 관리자가 원본 파일을 바로 수정할 수 있도록 행 번호와 실패 사유를 함께 제공해야 한다.
 
-## 15. Security and Access
+## 15. 보안 및 접근
 
-The MVP uses a single manager role.
+이번 MVP는 단일 관리자 역할을 사용한다.
 
-Security expectations:
+보안 기준:
 
-- all app routes except login require authentication
-- database access is scoped to authenticated manager actions
-- personal data is limited to name and phone number
+- 로그인 화면을 제외한 모든 앱 라우트는 인증이 필요하다.
+- DB 접근은 인증된 관리자 동작만 허용한다.
+- 개인정보는 이름과 전화번호만 최소한으로 다룬다.
 
-Role-based permission branching is deferred, but the server boundaries should remain compatible with future role expansion.
+역할 기반 권한 분기는 뒤 단계로 미루되, 서버 경계는 이후 확장 가능한 형태를 유지해야 한다.
 
-## 16. Testing Strategy
+## 16. 테스트 전략
 
-Testing for this MVP must focus on operational correctness.
+이번 MVP의 테스트는 운영 규칙이 깨지지 않는지 확인하는 데 초점을 둔다.
 
-### 16.1 Domain Logic Tests
+### 16.1 도메인 로직 테스트
 
-Cover:
+검증 대상:
 
-- worker creation during attendance registration
-- duplicate attendance rejection
-- phone normalization and worker lookup
-- Excel validation rules
-- one-worker-one-assignment-per-day enforcement
-- worker skill count increment logic
-- full rollback when any upload row fails
+- 출근 등록 과정에서의 신규 인력 생성
+- 중복 출근 등록 차단
+- 전화번호 정규화 및 인력 조회
+- 엑셀 검증 규칙
+- 하루 1인 1업무 제약
+- `worker_skills` 누적 증가 로직
+- 업로드 중 일부 행 실패 시 전체 롤백
 
-### 16.2 Integration Tests
+### 16.2 통합 테스트
 
-Cover:
+검증 대상:
 
-- attendance registration writing expected DB records
-- successful upload creating both assignments and skill counts
-- failed upload producing no partial writes
+- 출근 등록 시 예상한 DB 레코드가 생성되는지
+- 정상 업로드 시 `assignments`와 `worker_skills`가 함께 반영되는지
+- 실패 업로드 시 부분 저장 없이 전부 취소되는지
 
-### 16.3 Critical UI Flow Tests
+### 16.3 핵심 UI 흐름 테스트
 
-Cover:
+검증 대상:
 
-- manager login
-- attendance registration for an existing worker
-- attendance registration for a new worker
-- upload success flow
-- upload failure flow with visible row-level errors
-- phone-based worker history lookup
+- 관리자 로그인
+- 기존 인력 출근 등록
+- 신규 인력 생성 + 출근 등록
+- 업로드 성공 흐름
+- 행 단위 오류가 보이는 업로드 실패 흐름
+- 전화번호 기반 인력 이력 조회
 
-## 17. Seed and Setup Expectations
+## 17. 시드 및 초기 설정
 
-The MVP will need seeded `task_types` data before operations begin. The initial seeded list should match the warehouse task categories already defined in the PRD.
+운영 시작 전에 `task_types` 시드 데이터가 필요하다. 초기 시드 목록은 PRD에 정의된 물류센터 업무 카테고리를 기준으로 한다.
 
-Manager authentication setup must exist before internal testing starts.
+내부 테스트 시작 전에 관리자 인증 설정도 완료되어야 한다.
 
-## 18. Deferred Features Enabled by This MVP
+## 18. 이 MVP가 열어두는 다음 단계
 
-This design intentionally prepares the system for later phases:
+이 설계는 이후 기능 확장을 의도적으로 준비한다.
 
-- recommendation can read from `attendances`, `assignments`, and `worker_skills`
-- operational monitoring can aggregate assignment counts by task and compare them to future target headcount settings
-- richer analytics can build on the same normalized event data
+- 추천 배정은 `attendances`, `assignments`, `worker_skills`를 읽어 구현할 수 있다.
+- 운영 모니터링은 업무별 배정 건수를 집계하고, 이후 추가될 목표 인원 설정과 비교하는 방식으로 확장할 수 있다.
+- 더 풍부한 운영 분석도 같은 정규화된 이벤트 데이터를 기반으로 구축할 수 있다.
 
-## 19. Final Design Summary
+## 19. 최종 설계 요약
 
-The first Workforce OS release should be a manager-only internal console that captures attendance first, imports a fixed assignment Excel sheet second, and stores worker history plus task experience counts reliably.
+Workforce OS의 첫 릴리스는 관리자 전용 내부 콘솔이어야 하며, 먼저 출근을 등록하고, 다음으로 고정 양식 배정 엑셀을 업로드하고, 그 결과를 작업 이력과 경험 누적으로 신뢰성 있게 저장해야 한다.
 
-Its defining principle is strict data integrity:
+이 MVP의 핵심 원칙은 데이터 정합성이다.
 
-- new workers are created during attendance registration
-- uploads do not create workers
-- uploads fail completely if any row is invalid
-- assignment history and skill accumulation are written atomically
+- 신규 인력은 출근 등록 과정에서 생성한다.
+- 엑셀 업로드는 신규 인력을 만들지 않는다.
+- 업로드에 한 줄이라도 오류가 있으면 전체를 실패 처리한다.
+- 배정 이력과 경험 누적은 원자적으로 함께 기록한다.
 
-This creates a trustworthy operational data foundation for the next phases: recommendation and real-time monitoring.
+이렇게 해야 다음 단계인 추천 배정과 실시간 운영 모니터링의 기반 데이터가 신뢰 가능해진다.
