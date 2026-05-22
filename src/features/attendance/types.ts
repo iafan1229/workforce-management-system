@@ -30,7 +30,7 @@ export type AttendanceRepository = {
 export type AttendanceQueryRow = {
   id: string;
   work_date: string;
-  workers: AttendanceWorker[] | null;
+  workers: AttendanceWorker | AttendanceWorker[] | null;
 };
 
 export type AttendanceListRow = {
@@ -47,6 +47,6 @@ export function toAttendanceListRows(rows: AttendanceQueryRow[]) {
   return rows.map((row) => ({
     id: row.id,
     work_date: row.work_date,
-    worker: row.workers?.[0] ?? null,
+    worker: Array.isArray(row.workers) ? row.workers[0] ?? null : row.workers,
   }));
 }

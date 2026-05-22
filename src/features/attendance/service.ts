@@ -34,7 +34,7 @@ export async function registerAttendance(
       workDate: input.workDate,
     });
   } catch (error) {
-    if (isUniqueViolation(error)) {
+    if (isAttendanceConflict(error)) {
       throw new Error("이미 해당 날짜에 출근 등록된 인력입니다.");
     }
 
@@ -54,7 +54,7 @@ async function createWorkerWithRecovery({
   try {
     return await repo.createWorker({ name, phone });
   } catch (error) {
-    if (!isUniqueViolation(error)) {
+    if (!isWorkerPhoneConflict(error)) {
       throw error;
     }
 
@@ -84,10 +84,46 @@ function validateWorkDate(workDate: string) {
 }
 
 function isUniqueViolation(error: unknown) {
+  return readErrorField(error, "code") === "23505";
+}
+
+function isWorkerPhoneConflict(error: unknown) {
+  return matchesUniqueConstraint(error, {
+    constraintName: "workers_phone_key",
+    detailSnippet: "Key (phone)=",
+  });
+}
+
+function isAttendanceConflict(error: unknown) {
+  return matchesUniqueConstraint(error, {
+    constraintName: "attendances_worker_id_work_date_key",
+    detailSnippet: "Key (worker_id, work_date)=",
+  });
+}
+
+function matchesUniqueConstraint(
+  error: unknown,
+  {
+    constraintName,
+    detailSnippet,
+  }: {
+    constraintName: string;
+    detailSnippet: string;
+  },
+) {
   return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "23505"
+    isUniqueViolation(error) &&
+    (readErrorField(error, "message").includes(constraintName) ||
+      readErrorField(error, "details").includes(detailSnippet))
   );
+}
+
+function readErrorField(error: unknown, field: "code" | "message" | "details") {
+  if (typeof error !== "object" || error === null || !(field in error)) {
+    return "";
+  }
+
+  const value = (error as Record<string, unknown>)[field];
+
+  return typeof value === "string" ? value : "";
 }

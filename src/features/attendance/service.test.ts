@@ -117,7 +117,11 @@ describe("registerAttendance", () => {
           name: "홍길동",
           phone: "01012345678",
         }),
-      createWorker: vi.fn().mockRejectedValue({ code: "23505" }),
+      createWorker: vi.fn().mockRejectedValue({
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "workers_phone_key"',
+        details: "Key (phone)=(01012345678) already exists.",
+      }),
       createAttendance: vi.fn().mockResolvedValue({ id: "attendance-2" }),
     };
 
@@ -146,7 +150,13 @@ describe("registerAttendance", () => {
         phone: "01099998888",
       }),
       createWorker: vi.fn(),
-      createAttendance: vi.fn().mockRejectedValue({ code: "23505" }),
+      createAttendance: vi.fn().mockRejectedValue({
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "attendances_worker_id_work_date_key"',
+        details:
+          "Key (worker_id, work_date)=(worker-9, 2026-05-21) already exists.",
+      }),
     };
 
     await expect(

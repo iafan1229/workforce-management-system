@@ -6,9 +6,19 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { registerAttendanceAction } from "./actions";
 
-export default async function AttendancePage() {
+type AttendancePageProps = {
+  searchParams: Promise<{
+    error?: string;
+  }>;
+};
+
+export default async function AttendancePage({
+  searchParams,
+}: AttendancePageProps) {
   const supabase = await createSupabaseServerClient();
+  const params = await searchParams;
   const today = getTodayInSeoul();
+  const errorMessage = typeof params.error === "string" ? params.error : null;
   const { data, error } = await supabase
     .from("attendances")
     .select("id, work_date, workers(id, name, phone)")
@@ -43,6 +53,15 @@ export default async function AttendancePage() {
               이름과 휴대폰 번호를 입력하면 신규 인력 생성과 출근 등록을 함께 처리합니다.
             </p>
           </div>
+
+          {errorMessage ? (
+            <p
+              role="alert"
+              className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+            >
+              {errorMessage}
+            </p>
+          ) : null}
 
           <label className="block space-y-2">
             <span className="text-sm font-medium text-stone-700">이름</span>
