@@ -10,20 +10,38 @@
 npm install
 ```
 
-2. `.env.local`에 Supabase 공개 환경 변수를 설정합니다.
+2. 로컬 Supabase를 시작합니다.
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=YOUR_SUPABASE_URL
+supabase start
+```
+
+3. 스키마와 시드 데이터를 로컬 DB에 반영합니다.
+
+```bash
+supabase db reset
+```
+
+4. 프로젝트 루트에 `.env.local`을 만들고 Supabase 공개 환경 변수를 설정합니다.
+
+```bash
+cp .env.local.example .env.local
+```
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
 ```
 
-3. 개발 서버를 실행합니다.
+로컬 Supabase의 anon key는 `supabase status` 출력에서 확인합니다.
+
+5. 개발 서버를 실행합니다.
 
 ```bash
 npm run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
-4. 브라우저에서 `http://127.0.0.1:3000`에 접속합니다.
+6. 브라우저에서 `http://127.0.0.1:3000`에 접속합니다.
 
 세션이 없으면 첫 진입점 `/`에서 `/login`으로 이동합니다.
 
@@ -43,7 +61,8 @@ npm run dev -- --hostname 127.0.0.1 --port 3000
 ```bash
 npm run lint
 npm run typecheck
-npm run test:ui
+npm run test
+npm run build
 ```
 
 Task 8 범위 E2E:
