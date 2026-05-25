@@ -58,6 +58,8 @@ describe("getWorkerDetailByPhone", () => {
       ]),
       countAttendancesByDate: vi.fn(),
       countAssignmentsByDate: vi.fn(),
+      findAttendanceByWorkerAndDate: vi.fn(),
+      findAssignmentByWorkerAndDate: vi.fn(),
     };
 
     const detail = await service.getWorkerDetailByPhone(
@@ -104,6 +106,51 @@ describe("getWorkerDetailByPhone", () => {
         },
       ],
     });
+  });
+
+  it("선택 날짜 출근/배정 상태로 운영 CTA 기준 상태를 계산한다", async () => {
+    const service = await loadWorkersService();
+
+    expect(service?.getWorkerDetailByPhone).toBeTypeOf("function");
+
+    if (!service?.getWorkerDetailByPhone) {
+      return;
+    }
+
+    const repo = {
+      findWorkerByPhone: vi.fn().mockResolvedValue({
+        id: "worker-1",
+        name: "김현수",
+        phone: "01012345678",
+        lastAttendanceDate: "2026-05-25",
+      }),
+      findWorkerById: vi.fn(),
+      listWorkerSkills: vi.fn().mockResolvedValue([]),
+      listRecentAssignments: vi.fn().mockResolvedValue([]),
+      findAttendanceByWorkerAndDate: vi
+        .fn()
+        .mockResolvedValue({ workDate: "2026-05-25" }),
+      findAssignmentByWorkerAndDate: vi.fn().mockResolvedValue(null),
+      countAttendancesByDate: vi.fn(),
+      countAssignmentsByDate: vi.fn(),
+    };
+
+    const detail = await service.getWorkerDetailByPhone(
+      "010-1234-5678",
+      repo,
+      { today: "2026-05-25", workDate: "2026-05-25" },
+    );
+
+    expect(detail?.operationState).toBe("attended_unassigned");
+    expect(detail?.selectedDateAssignment).toBeNull();
+    expect(repo.findAttendanceByWorkerAndDate).toHaveBeenCalledWith(
+      "worker-1",
+      "2026-05-25",
+    );
+    expect(repo.findAssignmentByWorkerAndDate).toHaveBeenCalledWith(
+      "worker-1",
+      "2026-05-25",
+    );
   });
 });
 

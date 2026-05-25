@@ -17,4 +17,13 @@ test.describe("Workforce console entrypoint", () => {
       ),
     ).toBeVisible();
   });
+
+  test("날짜별 운영 경로도 로그인 보호를 유지한다", async ({ page }) => {
+    await page.goto("/operations/2026-05-25");
+
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(
+      page.getByRole("heading", { name: "관리자 로그인" }),
+    ).toBeVisible();
+  });
 });

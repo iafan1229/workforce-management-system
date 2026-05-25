@@ -1,5 +1,9 @@
-import Link from "next/link";
+import {
+  toAttendanceListRows,
+  type AttendanceQueryRow,
+} from "@/features/attendance/types";
 import { parseWorkDate } from "@/features/operations/date";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type OperationsDashboardPageProps = {
   params: Promise<{
@@ -7,65 +11,108 @@ type OperationsDashboardPageProps = {
   }>;
 };
 
+type AssignmentRow = {
+  worker_id: string;
+  task_types: { label: string } | { label: string }[] | null;
+};
+
 export default async function OperationsDashboardPage({
   params,
 }: OperationsDashboardPageProps) {
   const { workDate } = await params;
   const validDate = parseWorkDate(workDate);
+  const supabase = await createSupabaseServerClient();
+
+  const [{ data: attendanceData, error: attendanceError }, { data: assignmentData, error: assignmentError }] =
+    await Promise.all([
+      supabase
+        .from("attendances")
+        .select("id, work_date, workers(id, name, phone)")
+        .eq("work_date", validDate)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("assignments")
+        .select("worker_id, task_types(label)")
+        .eq("work_date", validDate)
+        .order("created_at", { ascending: false }),
+    ]);
+
+  if (attendanceError) {
+    throw attendanceError;
+  }
+
+  if (assignmentError) {
+    throw assignmentError;
+  }
+
+  const assignmentMap = new Map(
+    ((assignmentData ?? []) as AssignmentRow[]).map((assignment) => [
+      assignment.worker_id,
+      readSingleRelation(assignment.task_types)?.label ?? "미배정",
+    ]),
+  );
+
+  const attendedWorkers = toAttendanceListRows(
+    (attendanceData ?? []) as AttendanceQueryRow[],
+  ).map((row) => ({
+    id: row.id,
+    workerId: row.worker?.id ?? null,
+    name: row.worker?.name ?? "이름 없음",
+    phone: row.worker?.phone ?? "전화번호 없음",
+    taskTypeLabel: row.worker ? assignmentMap.get(row.worker.id) ?? "미배정" : "미배정",
+  }));
 
   return (
     <main className="space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-orange-700">선택 작업일</p>
-          <h1 className="text-2xl font-semibold text-stone-950">
-            {validDate} 운영
-          </h1>
-        </div>
-
-        <Link
-          href="/"
-          className="rounded-xl border border-stone-300 px-4 py-2 text-sm text-stone-700"
-        >
-          날짜 변경
-        </Link>
+      <header className="console-panel-strong rounded-[2rem] px-7 py-8 md:px-8">
+        <p className="text-sm font-medium text-amber-700">
+          선택 작업일 {validDate}
+        </p>
+        <h1 className="mt-3 text-[clamp(2rem,3vw,3rem)] font-semibold tracking-[-0.05em] text-stone-950">
+          운영 대시보드
+        </h1>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <Link
-          href={`/operations/${validDate}/attendance`}
-          className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
-        >
-          <h2 className="text-lg font-semibold text-stone-950">
-            출근/배정 관리
-          </h2>
-          <p className="mt-2 text-sm text-stone-600">
-            출근 등록과 수동 배정을 진행합니다.
-          </p>
-        </Link>
+      <section className="console-panel rounded-[2rem] p-6">
+        <h2 className="text-xl font-semibold tracking-[-0.04em] text-stone-950">
+          현재 출근/배정 인원
+        </h2>
 
-        <Link
-          href={`/operations/${validDate}/upload`}
-          className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
-        >
-          <h2 className="text-lg font-semibold text-stone-950">
-            배정표 업로드
-          </h2>
-          <p className="mt-2 text-sm text-stone-600">
-            선택 날짜 배정을 엑셀로 반영합니다.
+        {attendedWorkers.length === 0 ? (
+          <p className="console-status-note mt-6 text-sm text-stone-500">
+            아직 등록된 출근이 없습니다.
           </p>
-        </Link>
-
-        <Link
-          href={`/operations/${validDate}/workers`}
-          className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
-        >
-          <h2 className="text-lg font-semibold text-stone-950">인력 조회</h2>
-          <p className="mt-2 text-sm text-stone-600">
-            선택 날짜 기준 출근/배정 상태를 확인합니다.
-          </p>
-        </Link>
+        ) : (
+          <div className="mt-6 overflow-hidden rounded-[1.4rem] border border-white/70 bg-white/70">
+            <table className="min-w-full border-collapse text-left text-sm">
+              <thead className="bg-stone-100/90 text-stone-600">
+                <tr>
+                  <th className="px-4 py-3 font-medium">이름</th>
+                  <th className="px-4 py-3 font-medium">전화번호</th>
+                  <th className="px-4 py-3 font-medium">배정</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendedWorkers.map((worker) => (
+                  <tr key={worker.id} className="border-t border-stone-200/80">
+                    <td className="px-4 py-3 font-medium text-stone-950">
+                      {worker.name}
+                    </td>
+                    <td className="px-4 py-3 text-stone-600">{worker.phone}</td>
+                    <td className="px-4 py-3 text-stone-950">
+                      {worker.taskTypeLabel}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </main>
   );
+}
+
+function readSingleRelation<T>(value: T | T[] | null) {
+  return Array.isArray(value) ? value[0] ?? null : value;
 }

@@ -96,21 +96,71 @@ declare
   row_record jsonb;
   v_worker_id uuid;
   v_task_type_id uuid;
+  v_existing_assignment_id uuid;
+  v_existing_task_type_id uuid;
+  v_existing_skill_count integer;
 begin
   for row_record in select * from jsonb_array_elements(p_rows)
   loop
     v_worker_id := (row_record ->> 'worker_id')::uuid;
     v_task_type_id := (row_record ->> 'task_type_id')::uuid;
+    v_existing_assignment_id := null;
+    v_existing_task_type_id := null;
+    v_existing_skill_count := null;
 
-    insert into public.assignments (worker_id, task_type_id, work_date, source)
-    values (v_worker_id, v_task_type_id, p_work_date, 'excel_upload');
+    select id, task_type_id
+    into v_existing_assignment_id, v_existing_task_type_id
+    from public.assignments
+    where worker_id = v_worker_id
+      and work_date = p_work_date;
 
-    insert into public.worker_skills (worker_id, task_type_id, count)
-    values (v_worker_id, v_task_type_id, 1)
-    on conflict (worker_id, task_type_id)
-    do update
-      set count = public.worker_skills.count + 1,
-          updated_at = now();
+    if v_existing_assignment_id is null then
+      insert into public.assignments (worker_id, task_type_id, work_date, source)
+      values (v_worker_id, v_task_type_id, p_work_date, 'excel_upload');
+
+      insert into public.worker_skills (worker_id, task_type_id, count)
+      values (v_worker_id, v_task_type_id, 1)
+      on conflict (worker_id, task_type_id)
+      do update
+        set count = public.worker_skills.count + 1,
+            updated_at = now();
+    elsif v_existing_task_type_id = v_task_type_id then
+      update public.assignments
+      set source = 'excel_upload'
+      where id = v_existing_assignment_id;
+    else
+      select count
+      into v_existing_skill_count
+      from public.worker_skills
+      where worker_id = v_worker_id
+        and task_type_id = v_existing_task_type_id;
+
+      if v_existing_skill_count is not null then
+        if v_existing_skill_count <= 1 then
+          delete from public.worker_skills
+          where worker_id = v_worker_id
+            and task_type_id = v_existing_task_type_id;
+        else
+          update public.worker_skills
+          set count = count - 1,
+              updated_at = now()
+          where worker_id = v_worker_id
+            and task_type_id = v_existing_task_type_id;
+        end if;
+      end if;
+
+      update public.assignments
+      set task_type_id = v_task_type_id,
+          source = 'excel_upload'
+      where id = v_existing_assignment_id;
+
+      insert into public.worker_skills (worker_id, task_type_id, count)
+      values (v_worker_id, v_task_type_id, 1)
+      on conflict (worker_id, task_type_id)
+      do update
+        set count = public.worker_skills.count + 1,
+            updated_at = now();
+    end if;
   end loop;
 end;
 $$;

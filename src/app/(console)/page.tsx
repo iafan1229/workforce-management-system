@@ -1,49 +1,82 @@
 import Link from "next/link";
+import { OperationsDateCalendar } from "@/components/operations-date-calendar";
 import { getTodayInSeoul } from "@/features/attendance/types";
 import { buildCalendarMonth } from "@/features/operations/calendar";
-import { toOperationsPath } from "@/features/operations/date";
+
+const START_STEPS = [
+  "로그인 후 먼저 작업일을 선택합니다.",
+  "선택한 날짜의 운영 대시보드와 좌측 네비게이션이 열립니다.",
+  "출근/배정, 업로드, 인력 조회를 같은 작업일 기준으로 이어서 처리합니다.",
+];
 
 export default async function OperationsHomePage() {
   const today = getTodayInSeoul();
   const calendar = buildCalendarMonth(today);
 
   return (
-    <main className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold text-stone-950">운영 날짜 선택</h1>
-        <p className="text-sm text-stone-600">
-          출근, 배정, 업로드를 진행할 날짜를 먼저 선택합니다.
-        </p>
-      </header>
-
-      <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-stone-950">
-            {calendar.title}
-          </h2>
-          <p className="text-sm text-stone-500">
-            기본 선택 날짜 {today}
+    <main className="mx-auto w-full max-w-[1320px] px-4 py-8 md:px-6 md:py-10">
+      <section className="space-y-6">
+        <div className="space-y-3">
+          <p className="text-sm font-medium uppercase tracking-[0.18em] text-stone-500">
+            Workforce OS
+          </p>
+          <h1 className="max-w-4xl text-[clamp(2.6rem,4vw,4.4rem)] font-semibold leading-[1.02] tracking-[-0.05em] text-stone-950">
+            작업일을 선택한 뒤 운영을 시작합니다.
+          </h1>
+          <p className="max-w-3xl text-base leading-8 text-stone-600 md:text-lg">
+            선택한 날짜의 네비게이션과 운영 대시보드가 열립니다. 먼저 달력에서
+            작업일을 고르고, 그 다음 화면에서 출근/배정과 업로드, 인력 조회를
+            진행하세요.
           </p>
         </div>
 
-        <div className="grid grid-cols-7 gap-2 text-center text-sm">
-          {calendar.weeks.flat().map((day) => (
-            <Link
-              key={day.date}
-              href={toOperationsPath(day.date)}
-              className={`rounded-xl px-3 py-4 ${
-                day.isSelected
-                  ? "bg-stone-900 text-white"
-                  : day.isCurrentMonth
-                    ? "bg-stone-50 text-stone-900"
-                    : "bg-stone-100 text-stone-400"
-              }`}
-            >
-              <span className="block text-xs">{day.date.slice(5)}</span>
-              <span className="mt-1 block font-medium">{day.label}</span>
-            </Link>
-          ))}
-        </div>
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="console-panel-strong rounded-[2rem] p-6 md:p-8">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="console-soft-label">작업일 선택</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-stone-950">
+                  {calendar.title}
+                </h2>
+              </div>
+              <Link
+                href={`/operations/${today}`}
+                className="console-button-primary"
+              >
+                오늘 날짜 바로 열기
+              </Link>
+            </div>
+
+            <OperationsDateCalendar days={calendar.weeks.flat()} />
+          </div>
+
+          <aside className="space-y-6">
+            <section className="console-panel rounded-[2rem] p-6">
+              <p className="console-soft-label">진행 순서</p>
+              <ol className="mt-4 space-y-4 text-sm leading-7 text-stone-700">
+                {START_STEPS.map((step, index) => (
+                  <li key={step} className="flex gap-3">
+                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-stone-950 text-xs font-semibold text-white">
+                      {index + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <section className="console-panel rounded-[2rem] p-6">
+              <p className="console-soft-label">기본 작업일</p>
+              <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-stone-950">
+                {today}
+              </p>
+              <p className="mt-3 text-sm leading-7 text-stone-600">
+                빠르게 시작해야 한다면 오늘 날짜를 바로 열고, 다른 날짜가
+                필요하면 달력에서 선택하세요.
+              </p>
+            </section>
+          </aside>
+        </section>
       </section>
     </main>
   );

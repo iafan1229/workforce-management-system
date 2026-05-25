@@ -316,4 +316,34 @@ describe("importAssignmentUpload", () => {
       ],
     });
   });
+
+  it("같은 날짜에 기존 수동 배정이 있어도 업로드 배치를 호출한다", async () => {
+    const repo = {
+      findWorkersByPhones: vi.fn().mockResolvedValue([
+        { id: "worker-1", name: "홍길동", phone: "01012345678" },
+      ]),
+      findAttendancesByDate: vi.fn().mockResolvedValue([
+        { workerId: "worker-1", workDate: "2026-05-21" },
+      ]),
+      findTaskTypesByLabels: vi.fn().mockResolvedValue([
+        { id: "task-1", label: "피딩" },
+      ]),
+      applyAssignmentBatch: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await expect(
+      importAssignmentUpload(
+        {
+          workDate: "2026-05-21",
+          rows: [{ name: "홍길동", phone: "010-1234-5678", task: "피딩" }],
+        },
+        repo,
+      ),
+    ).resolves.toEqual({ importedCount: 1 });
+
+    expect(repo.applyAssignmentBatch).toHaveBeenCalledWith({
+      workDate: "2026-05-21",
+      rows: [{ workerId: "worker-1", taskTypeId: "task-1" }],
+    });
+  });
 });

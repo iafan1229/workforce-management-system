@@ -1,10 +1,9 @@
 import { normalizePhone } from "@/lib/phone";
+import { parseWorkDate } from "@/features/operations/date";
 import type {
   AttendanceRepository,
   RegisterAttendanceInput,
 } from "@/features/attendance/types";
-
-const WORK_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function registerAttendance(
   input: RegisterAttendanceInput,
@@ -16,7 +15,7 @@ export async function registerAttendance(
     throw new Error("이름을 입력해 주세요.");
   }
 
-  validateWorkDate(input.workDate);
+  validateAttendanceWorkDate(input.workDate);
 
   const normalizedPhone = normalizePhone(input.phone);
   const existingWorker = await repo.findWorkerByPhone(normalizedPhone);
@@ -68,23 +67,16 @@ async function createWorkerWithRecovery({
   }
 }
 
-function validateWorkDate(workDate: string) {
-  if (!WORK_DATE_PATTERN.test(workDate)) {
-    throw new Error("근무일 형식이 올바르지 않습니다.");
-  }
-
-  const parsedDate = new Date(`${workDate}T00:00:00.000Z`);
-
-  if (
-    Number.isNaN(parsedDate.getTime()) ||
-    parsedDate.toISOString().slice(0, 10) !== workDate
-  ) {
-    throw new Error("근무일 형식이 올바르지 않습니다.");
-  }
-}
-
 function isUniqueViolation(error: unknown) {
   return readErrorField(error, "code") === "23505";
+}
+
+function validateAttendanceWorkDate(workDate: string) {
+  try {
+    parseWorkDate(workDate);
+  } catch {
+    throw new Error("근무일 형식이 올바르지 않습니다.");
+  }
 }
 
 function isWorkerPhoneConflict(error: unknown) {

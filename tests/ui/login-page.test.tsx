@@ -19,7 +19,7 @@ describe("LoginPage", () => {
 
     expect(document.documentElement.lang).toBe("ko");
     expect(document.body.className).toContain("min-h-screen");
-    expect(document.body.className).toContain("bg-stone-100");
+    expect(document.body.className).toContain("bg-[#f4eee3]");
     expect(document.body.className).toContain("text-stone-950");
     expect(heading?.textContent).toBe("관리자 로그인");
     expect(emailLabel).not.toBeNull();
