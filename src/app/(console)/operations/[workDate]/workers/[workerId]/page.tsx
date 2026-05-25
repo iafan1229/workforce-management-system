@@ -48,10 +48,10 @@ export default async function OperationsWorkerDetailPage({
     <main className="space-y-6">
       <header className="space-y-2">
         <Link
-          href={`/operations/${validDate}/workers`}
+          href={`/operations/${validDate}/attendance`}
           className="text-sm text-stone-500 underline"
         >
-          인력 조회로 돌아가기
+          출근/배정으로 돌아가기
         </Link>
         <p className="text-sm font-medium text-orange-700">
           선택 작업일 {validDate}
@@ -111,15 +111,15 @@ export default async function OperationsWorkerDetailPage({
 
           <section className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
             <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-stone-950">숙련 업무</h2>
+              <h2 className="text-lg font-semibold text-stone-950">배정 히스토리</h2>
               <p className="text-sm text-stone-600">
-                누적 배정 기반으로 집계된 업무 스킬 목록입니다.
+                누적 배정 count가 높은 업무부터 정리한 히스토리입니다.
               </p>
             </div>
 
             {workerDetail.skills.length === 0 ? (
               <p className="mt-6 rounded-xl border border-dashed border-stone-300 px-4 py-6 text-sm text-stone-500">
-                아직 누적된 숙련 업무 기록이 없습니다.
+                아직 누적된 배정 히스토리가 없습니다.
               </p>
             ) : (
               <ul className="mt-6 space-y-3">

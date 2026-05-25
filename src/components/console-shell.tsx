@@ -19,10 +19,6 @@ const NAVIGATION_ITEMS = [
     getHref: (workDate: string) => `/operations/${workDate}/attendance`,
   },
   {
-    label: "인력 조회",
-    getHref: (workDate: string) => `/operations/${workDate}/workers`,
-  },
-  {
     label: "배정표 업로드",
     getHref: (workDate: string) => `/operations/${workDate}/upload`,
   },

@@ -111,7 +111,8 @@ describe("importAssignmentUpload", () => {
   it("업로드할 데이터 행이 없으면 전체를 거절한다", async () => {
     const repo = {
       findWorkersByPhones: vi.fn(),
-      findAttendancesByDate: vi.fn(),
+      createWorkers: vi.fn(),
+      createAttendances: vi.fn(),
       findTaskTypesByLabels: vi.fn(),
       applyAssignmentBatch: vi.fn(),
     };
@@ -127,7 +128,8 @@ describe("importAssignmentUpload", () => {
     ).rejects.toThrowError("업로드할 데이터 행이 없습니다.");
 
     expect(repo.findWorkersByPhones).not.toHaveBeenCalled();
-    expect(repo.findAttendancesByDate).not.toHaveBeenCalled();
+    expect(repo.createWorkers).not.toHaveBeenCalled();
+    expect(repo.createAttendances).not.toHaveBeenCalled();
     expect(repo.findTaskTypesByLabels).not.toHaveBeenCalled();
     expect(repo.applyAssignmentBatch).not.toHaveBeenCalled();
   });
@@ -137,9 +139,8 @@ describe("importAssignmentUpload", () => {
       findWorkersByPhones: vi.fn().mockResolvedValue([
         { id: "worker-1", name: "홍길동", phone: "01012345678" },
       ]),
-      findAttendancesByDate: vi.fn().mockResolvedValue([
-        { workerId: "worker-1", workDate: "2026-05-21" },
-      ]),
+      createWorkers: vi.fn(),
+      createAttendances: vi.fn(),
       findTaskTypesByLabels: vi.fn().mockResolvedValue([
         { id: "task-1", label: "피딩" },
       ]),
@@ -160,21 +161,23 @@ describe("importAssignmentUpload", () => {
     ).rejects.toThrowError("3행: 업로드 파일 안에 동일 인력 중복 행이 있습니다.");
 
     expect(repo.findWorkersByPhones).not.toHaveBeenCalled();
-    expect(repo.findAttendancesByDate).not.toHaveBeenCalled();
+    expect(repo.createWorkers).not.toHaveBeenCalled();
+    expect(repo.createAttendances).not.toHaveBeenCalled();
     expect(repo.findTaskTypesByLabels).not.toHaveBeenCalled();
     expect(repo.applyAssignmentBatch).not.toHaveBeenCalled();
   });
 
-  it("출근하지 않은 인력이 있으면 전체를 거절한다", async () => {
+  it("출근하지 않은 기존 인력도 자동 출근 등록 후 배정을 반영한다", async () => {
     const repo = {
       findWorkersByPhones: vi.fn().mockResolvedValue([
         { id: "worker-1", name: "홍길동", phone: "01012345678" },
       ]),
-      findAttendancesByDate: vi.fn().mockResolvedValue([]),
+      createWorkers: vi.fn(),
+      createAttendances: vi.fn().mockResolvedValue(undefined),
       findTaskTypesByLabels: vi.fn().mockResolvedValue([
         { id: "task-1", label: "피딩" },
       ]),
-      applyAssignmentBatch: vi.fn(),
+      applyAssignmentBatch: vi.fn().mockResolvedValue(undefined),
     };
 
     await expect(
@@ -185,21 +188,34 @@ describe("importAssignmentUpload", () => {
         },
         repo,
       ),
-    ).rejects.toThrowError(
-      "2행: 홍길동은(는) 2026-05-21 출근 등록이 되어 있지 않습니다.",
-    );
+    ).resolves.toEqual({ importedCount: 1 });
 
-    expect(repo.applyAssignmentBatch).not.toHaveBeenCalled();
+    expect(repo.createWorkers).not.toHaveBeenCalled();
+    expect(repo.createAttendances).toHaveBeenCalledWith({
+      workDate: "2026-05-21",
+      workerIds: ["worker-1"],
+      status: "scheduled",
+    });
+    expect(repo.applyAssignmentBatch).toHaveBeenCalledWith({
+      workDate: "2026-05-21",
+      rows: [{ workerId: "worker-1", taskTypeId: "task-1" }],
+    });
   });
 
-  it("등록되지 않은 인력이 있으면 전체를 거절한다", async () => {
+  it("등록되지 않은 인력은 자동 생성 후 출근과 배정을 반영한다", async () => {
     const repo = {
-      findWorkersByPhones: vi.fn().mockResolvedValue([]),
-      findAttendancesByDate: vi.fn().mockResolvedValue([]),
+      findWorkersByPhones: vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { id: "worker-1", name: "홍길동", phone: "01012345678" },
+        ]),
+      createWorkers: vi.fn().mockResolvedValue(undefined),
+      createAttendances: vi.fn().mockResolvedValue(undefined),
       findTaskTypesByLabels: vi.fn().mockResolvedValue([
         { id: "task-1", label: "피딩" },
       ]),
-      applyAssignmentBatch: vi.fn(),
+      applyAssignmentBatch: vi.fn().mockResolvedValue(undefined),
     };
 
     await expect(
@@ -210,11 +226,22 @@ describe("importAssignmentUpload", () => {
         },
         repo,
       ),
-    ).rejects.toThrowError(
-      "2행: 01012345678 전화번호의 인력을 찾을 수 없습니다.",
-    );
+    ).resolves.toEqual({ importedCount: 1 });
 
-    expect(repo.applyAssignmentBatch).not.toHaveBeenCalled();
+    expect(repo.findWorkersByPhones).toHaveBeenNthCalledWith(1, ["01012345678"]);
+    expect(repo.createWorkers).toHaveBeenCalledWith([
+      { name: "홍길동", phone: "01012345678" },
+    ]);
+    expect(repo.findWorkersByPhones).toHaveBeenNthCalledWith(2, ["01012345678"]);
+    expect(repo.createAttendances).toHaveBeenCalledWith({
+      workDate: "2026-05-21",
+      workerIds: ["worker-1"],
+      status: "scheduled",
+    });
+    expect(repo.applyAssignmentBatch).toHaveBeenCalledWith({
+      workDate: "2026-05-21",
+      rows: [{ workerId: "worker-1", taskTypeId: "task-1" }],
+    });
   });
 
   it("이름이 등록 정보와 다르면 전체를 거절한다", async () => {
@@ -222,9 +249,8 @@ describe("importAssignmentUpload", () => {
       findWorkersByPhones: vi.fn().mockResolvedValue([
         { id: "worker-1", name: "홍길동", phone: "01012345678" },
       ]),
-      findAttendancesByDate: vi.fn().mockResolvedValue([
-        { workerId: "worker-1", workDate: "2026-05-21" },
-      ]),
+      createWorkers: vi.fn(),
+      createAttendances: vi.fn(),
       findTaskTypesByLabels: vi.fn().mockResolvedValue([
         { id: "task-1", label: "피딩" },
       ]),
@@ -251,9 +277,8 @@ describe("importAssignmentUpload", () => {
       findWorkersByPhones: vi.fn().mockResolvedValue([
         { id: "worker-1", name: "홍길동", phone: "01012345678" },
       ]),
-      findAttendancesByDate: vi.fn().mockResolvedValue([
-        { workerId: "worker-1", workDate: "2026-05-21" },
-      ]),
+      createWorkers: vi.fn(),
+      createAttendances: vi.fn(),
       findTaskTypesByLabels: vi.fn().mockResolvedValue([]),
       applyAssignmentBatch: vi.fn(),
     };
@@ -277,10 +302,8 @@ describe("importAssignmentUpload", () => {
         { id: "worker-1", name: "홍길동", phone: "01012345678" },
         { id: "worker-2", name: "김영희", phone: "01099998888" },
       ]),
-      findAttendancesByDate: vi.fn().mockResolvedValue([
-        { workerId: "worker-1", workDate: "2026-05-21" },
-        { workerId: "worker-2", workDate: "2026-05-21" },
-      ]),
+      createWorkers: vi.fn(),
+      createAttendances: vi.fn().mockResolvedValue(undefined),
       findTaskTypesByLabels: vi.fn().mockResolvedValue([
         { id: "task-1", label: "피딩" },
         { id: "task-2", label: "선별" },
@@ -305,7 +328,12 @@ describe("importAssignmentUpload", () => {
       "01012345678",
       "01099998888",
     ]);
-    expect(repo.findAttendancesByDate).toHaveBeenCalledWith("2026-05-21");
+    expect(repo.createWorkers).not.toHaveBeenCalled();
+    expect(repo.createAttendances).toHaveBeenCalledWith({
+      workDate: "2026-05-21",
+      workerIds: ["worker-1", "worker-2"],
+      status: "scheduled",
+    });
     expect(repo.findTaskTypesByLabels).toHaveBeenCalledWith(["피딩", "선별"]);
     expect(repo.applyAssignmentBatch).toHaveBeenCalledTimes(1);
     expect(repo.applyAssignmentBatch).toHaveBeenCalledWith({
@@ -322,9 +350,8 @@ describe("importAssignmentUpload", () => {
       findWorkersByPhones: vi.fn().mockResolvedValue([
         { id: "worker-1", name: "홍길동", phone: "01012345678" },
       ]),
-      findAttendancesByDate: vi.fn().mockResolvedValue([
-        { workerId: "worker-1", workDate: "2026-05-21" },
-      ]),
+      createWorkers: vi.fn(),
+      createAttendances: vi.fn().mockResolvedValue(undefined),
       findTaskTypesByLabels: vi.fn().mockResolvedValue([
         { id: "task-1", label: "피딩" },
       ]),

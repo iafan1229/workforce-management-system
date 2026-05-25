@@ -3,12 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { clearManualAssignment, saveManualAssignment } from "@/features/assignments/service";
+import {
+  findAttendanceByWorkerAndDate,
+  insertAttendance,
+  updateAttendanceStatus,
+} from "@/features/attendance/status-column-compat";
 import { registerAttendance } from "@/features/attendance/service";
 import { parseWorkDate } from "@/features/operations/date";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function registerAttendanceForDateAction(formData: FormData) {
   const workDate = parseWorkDate(String(formData.get("workDate") ?? ""));
+  const filters = readSearchFilters(formData);
   const supabase = await createSupabaseServerClient();
 
   try {
@@ -17,6 +23,7 @@ export async function registerAttendanceForDateAction(formData: FormData) {
         name: String(formData.get("name") ?? ""),
         phone: String(formData.get("phone") ?? ""),
         workDate,
+        status: parseAttendanceStatus(formData.get("status")),
       },
       {
         findWorkerByPhone: async (phone) => {
@@ -45,30 +52,29 @@ export async function registerAttendanceForDateAction(formData: FormData) {
 
           return data;
         },
-        createAttendance: async (input) => {
-          const { error } = await supabase.from("attendances").insert({
-            worker_id: input.workerId,
-            work_date: input.workDate,
-          });
-
-          if (error) {
-            throw error;
-          }
-        },
+        findAttendance: (input) => findAttendanceByWorkerAndDate(supabase, input),
+        createAttendance: (input) => insertAttendance(supabase, input),
+        updateAttendanceStatus: (input) =>
+          updateAttendanceStatus(supabase, input),
       },
     );
   } catch (error) {
-    redirect(withError(workDate, getErrorMessage(error)));
+    redirect(
+      withError(workDate, getErrorMessage(error), {
+        filters,
+      }),
+    );
   }
 
   revalidateOperationsDate(workDate);
-  redirect(`/operations/${workDate}/attendance`);
+  redirect(buildAttendancePath(workDate, { filters }));
 }
 
 export async function saveManualAssignmentAction(formData: FormData) {
   const workDate = parseWorkDate(String(formData.get("workDate") ?? ""));
   const workerId = String(formData.get("workerId") ?? "");
   const taskTypeId = String(formData.get("taskTypeId") ?? "");
+  const filters = readSearchFilters(formData);
   const supabase = await createSupabaseServerClient();
 
   try {
@@ -81,16 +87,27 @@ export async function saveManualAssignmentAction(formData: FormData) {
       createManualAssignmentRepository(supabase),
     );
   } catch (error) {
-    redirect(withError(workDate, getErrorMessage(error), workerId));
+    redirect(
+      withError(workDate, getErrorMessage(error), {
+        focusWorkerId: workerId,
+        filters,
+      }),
+    );
   }
 
   revalidateOperationsDate(workDate);
-  redirect(`/operations/${workDate}/attendance?focusWorkerId=${workerId}`);
+  redirect(
+    buildAttendancePath(workDate, {
+      focusWorkerId: workerId,
+      filters,
+    }),
+  );
 }
 
 export async function clearManualAssignmentAction(formData: FormData) {
   const workDate = parseWorkDate(String(formData.get("workDate") ?? ""));
   const workerId = String(formData.get("workerId") ?? "");
+  const filters = readSearchFilters(formData);
   const supabase = await createSupabaseServerClient();
 
   try {
@@ -102,11 +119,21 @@ export async function clearManualAssignmentAction(formData: FormData) {
       createManualAssignmentRepository(supabase),
     );
   } catch (error) {
-    redirect(withError(workDate, getErrorMessage(error), workerId));
+    redirect(
+      withError(workDate, getErrorMessage(error), {
+        focusWorkerId: workerId,
+        filters,
+      }),
+    );
   }
 
   revalidateOperationsDate(workDate);
-  redirect(`/operations/${workDate}/attendance?focusWorkerId=${workerId}`);
+  redirect(
+    buildAttendancePath(workDate, {
+      focusWorkerId: workerId,
+      filters,
+    }),
+  );
 }
 
 function createManualAssignmentRepository(
@@ -308,14 +335,74 @@ function getErrorMessage(error: unknown) {
   return "출근 및 배정 처리 중 오류가 발생했습니다.";
 }
 
-function withError(workDate: string, error: string, focusWorkerId?: string) {
+function parseAttendanceStatus(entry: FormDataEntryValue | null) {
+  return entry === "scheduled" ? "scheduled" : "checked_in";
+}
+
+function readSearchFilters(formData: FormData) {
+  return {
+    phone: String(formData.get("searchPhone") ?? "").trim(),
+    taskTypeId: String(formData.get("searchTaskTypeId") ?? "").trim(),
+  };
+}
+
+function withError(
+  workDate: string,
+  error: string,
+  options?: {
+    focusWorkerId?: string;
+    filters?: {
+      phone: string;
+      taskTypeId: string;
+    };
+  },
+) {
   const params = new URLSearchParams({
     error,
   });
 
-  if (focusWorkerId) {
-    params.set("focusWorkerId", focusWorkerId);
+  if (options?.focusWorkerId) {
+    params.set("focusWorkerId", options.focusWorkerId);
+  }
+
+  if (options?.filters?.phone) {
+    params.set("phone", options.filters.phone);
+  }
+
+  if (options?.filters?.taskTypeId) {
+    params.set("taskTypeId", options.filters.taskTypeId);
   }
 
   return `/operations/${workDate}/attendance?${params.toString()}`;
+}
+
+function buildAttendancePath(
+  workDate: string,
+  options?: {
+    focusWorkerId?: string;
+    filters?: {
+      phone: string;
+      taskTypeId: string;
+    };
+  },
+) {
+  const params = new URLSearchParams();
+
+  if (options?.focusWorkerId) {
+    params.set("focusWorkerId", options.focusWorkerId);
+  }
+
+  if (options?.filters?.phone) {
+    params.set("phone", options.filters.phone);
+  }
+
+  if (options?.filters?.taskTypeId) {
+    params.set("taskTypeId", options.filters.taskTypeId);
+  }
+
+  const query = params.toString();
+
+  return query
+    ? `/operations/${workDate}/attendance?${query}`
+    : `/operations/${workDate}/attendance`;
 }

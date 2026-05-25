@@ -1,6 +1,7 @@
 import type {
   ApplyAssignmentBatchRow,
   AssignmentUploadRepository,
+  AssignmentUploadWorker,
   ImportAssignmentUploadInput,
   ImportAssignmentUploadResult,
 } from "./types";
@@ -19,17 +20,36 @@ export async function importAssignmentUpload(
   const phones = unique(rows.map((row) => row.phone));
   const labels = unique(rows.map((row) => row.task));
 
-  const [workers, attendances, taskTypes] = await Promise.all([
+  const [workers, taskTypes] = await Promise.all([
     repo.findWorkersByPhones(phones),
-    repo.findAttendancesByDate(input.workDate),
     repo.findTaskTypesByLabels(labels),
   ]);
 
-  const workerMap = new Map(workers.map((worker) => [worker.phone, worker]));
-  const attendanceSet = new Set(attendances.map((attendance) => attendance.workerId));
-  const taskTypeMap = new Map(
-    taskTypes.map((taskType) => [taskType.label, taskType]),
-  );
+  const taskTypeMap = new Map(taskTypes.map((taskType) => [taskType.label, taskType]));
+
+  for (const row of rows) {
+    if (!taskTypeMap.has(row.task)) {
+      throw new Error(
+        `${row.rowNumber}행: ${row.task} 업무 카테고리를 찾을 수 없습니다.`,
+      );
+    }
+  }
+
+  let workerMap = new Map(workers.map((worker) => [worker.phone, worker]));
+
+  const missingWorkers = rows
+    .filter((row) => !workerMap.has(row.phone))
+    .map((row) => ({
+      name: row.name,
+      phone: row.phone,
+    }));
+
+  if (missingWorkers.length > 0) {
+    await repo.createWorkers(uniqueByPhone(missingWorkers));
+    workerMap = await findWorkersByPhones(repo, phones);
+  }
+
+  assertMatchingWorkerNames(rows, workerMap);
 
   const assignmentRows = rows.map((row): ApplyAssignmentBatchRow => {
     const worker = workerMap.get(row.phone);
@@ -37,18 +57,6 @@ export async function importAssignmentUpload(
     if (!worker) {
       throw new Error(
         `${row.rowNumber}행: ${row.phone} 전화번호의 인력을 찾을 수 없습니다.`,
-      );
-    }
-
-    if (worker.name !== row.name) {
-      throw new Error(
-        `${row.rowNumber}행: ${row.phone} 전화번호의 인력 이름이 등록 정보와 일치하지 않습니다.`,
-      );
-    }
-
-    if (!attendanceSet.has(worker.id)) {
-      throw new Error(
-        `${row.rowNumber}행: ${row.name}은(는) ${input.workDate} 출근 등록이 되어 있지 않습니다.`,
       );
     }
 
@@ -66,6 +74,12 @@ export async function importAssignmentUpload(
     };
   });
 
+  await repo.createAttendances({
+    workDate: input.workDate,
+    workerIds: unique(assignmentRows.map((row) => row.workerId)),
+    status: "scheduled",
+  });
+
   await repo.applyAssignmentBatch({
     workDate: input.workDate,
     rows: assignmentRows,
@@ -78,4 +92,40 @@ export async function importAssignmentUpload(
 
 function unique(values: string[]) {
   return [...new Set(values)];
+}
+
+function uniqueByPhone(workers: { name: string; phone: string }[]) {
+  const workerMap = new Map(workers.map((worker) => [worker.phone, worker]));
+
+  return [...workerMap.values()];
+}
+
+async function findWorkersByPhones(
+  repo: AssignmentUploadRepository,
+  phones: string[],
+) {
+  const workers = await repo.findWorkersByPhones(phones);
+
+  return new Map(workers.map((worker) => [worker.phone, worker]));
+}
+
+function assertMatchingWorkerNames(
+  rows: { rowNumber: number; name: string; phone: string }[],
+  workerMap: Map<string, AssignmentUploadWorker>,
+) {
+  for (const row of rows) {
+    const worker = workerMap.get(row.phone);
+
+    if (!worker) {
+      throw new Error(
+        `${row.rowNumber}행: ${row.phone} 전화번호의 인력을 찾을 수 없습니다.`,
+      );
+    }
+
+    if (worker.name !== row.name) {
+      throw new Error(
+        `${row.rowNumber}행: ${row.phone} 전화번호의 인력 이름이 등록 정보와 일치하지 않습니다.`,
+      );
+    }
+  }
 }

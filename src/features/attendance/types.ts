@@ -4,6 +4,13 @@ export type AttendanceWorker = {
   phone: string;
 };
 
+export const ATTENDANCE_STATUS_LABELS = {
+  scheduled: "출근예정",
+  checked_in: "출근완료",
+} as const;
+
+export type AttendanceStatus = keyof typeof ATTENDANCE_STATUS_LABELS;
+
 type RelationValue<T> = T | T[] | null;
 
 const SEOUL_DATE_FORMATTER = new Intl.DateTimeFormat("sv-SE", {
@@ -14,6 +21,7 @@ export type RegisterAttendanceInput = {
   name: string;
   phone: string;
   workDate: string;
+  status: AttendanceStatus;
 };
 
 export type CreateWorkerInput = Pick<AttendanceWorker, "name" | "phone">;
@@ -21,12 +29,28 @@ export type CreateWorkerInput = Pick<AttendanceWorker, "name" | "phone">;
 export type CreateAttendanceInput = {
   workerId: string;
   workDate: string;
+  status: AttendanceStatus;
+};
+
+export type AttendanceRecord = {
+  id: string;
+  workerId: string;
+  workDate: string;
+  status: AttendanceStatus;
 };
 
 export type AttendanceRepository = {
   findWorkerByPhone: (phone: string) => Promise<AttendanceWorker | null>;
   createWorker: (input: CreateWorkerInput) => Promise<AttendanceWorker>;
+  findAttendance: (input: {
+    workerId: string;
+    workDate: string;
+  }) => Promise<AttendanceRecord | null>;
   createAttendance: (input: CreateAttendanceInput) => Promise<unknown>;
+  updateAttendanceStatus: (input: {
+    attendanceId: string;
+    status: AttendanceStatus;
+  }) => Promise<unknown>;
 };
 
 export type AttendanceAssignment = {
@@ -50,6 +74,7 @@ type AttendanceAssignmentQueryRow = {
 export type AttendanceQueryRow = {
   id: string;
   work_date: string;
+  status: AttendanceStatus;
   workers: RelationValue<AttendanceWorker>;
   assignments?: RelationValue<AttendanceAssignmentQueryRow>;
 };
@@ -57,6 +82,7 @@ export type AttendanceQueryRow = {
 export type AttendanceListRow = {
   id: string;
   work_date: string;
+  status: AttendanceStatus;
   worker: AttendanceWorker | null;
   assignment: AttendanceAssignment | null;
 };
@@ -69,6 +95,7 @@ export function toAttendanceListRows(rows: AttendanceQueryRow[]) {
   return rows.map((row) => ({
     id: row.id,
     work_date: row.work_date,
+    status: row.status,
     worker: Array.isArray(row.workers) ? row.workers[0] ?? null : row.workers,
     assignment: mapAttendanceAssignment(row.assignments),
   }));

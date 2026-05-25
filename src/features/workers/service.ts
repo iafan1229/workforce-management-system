@@ -186,7 +186,7 @@ async function buildWorkerDetail(
           selectedDateAssignment: assignmentForDate,
         }
       : {}),
-    skills,
+    skills: sortWorkerSkills(skills),
     recentAssignments,
   };
 }
@@ -345,6 +345,16 @@ function deriveWorkerOperationState({
   }
 
   return "attended_assigned";
+}
+
+function sortWorkerSkills(skills: WorkerSkill[]) {
+  return [...skills].sort((left, right) => {
+    if (right.count !== left.count) {
+      return right.count - left.count;
+    }
+
+    return right.updatedAt.localeCompare(left.updatedAt);
+  });
 }
 
 type WorkerBaseRow = {

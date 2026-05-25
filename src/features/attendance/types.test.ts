@@ -8,6 +8,7 @@ describe("toAttendanceListRows", () => {
         {
           id: "attendance-1",
           work_date: "2026-05-22",
+          status: "checked_in",
           workers: {
             id: "worker-1",
             name: "홍길동",
@@ -19,6 +20,7 @@ describe("toAttendanceListRows", () => {
       {
         id: "attendance-1",
         work_date: "2026-05-22",
+        status: "checked_in",
         worker: {
           id: "worker-1",
           name: "홍길동",
@@ -35,6 +37,7 @@ describe("toAttendanceListRows", () => {
         {
           id: "attendance-2",
           work_date: "2026-05-22",
+          status: "scheduled",
           workers: [
             {
               id: "worker-2",
@@ -48,6 +51,7 @@ describe("toAttendanceListRows", () => {
       {
         id: "attendance-2",
         work_date: "2026-05-22",
+        status: "scheduled",
         worker: {
           id: "worker-2",
           name: "김영희",
@@ -64,6 +68,7 @@ describe("toAttendanceListRows", () => {
         {
           id: "attendance-3",
           work_date: "2026-05-22",
+          status: "checked_in",
           workers: {
             id: "worker-3",
             name: "박민수",
@@ -83,6 +88,7 @@ describe("toAttendanceListRows", () => {
       {
         id: "attendance-3",
         work_date: "2026-05-22",
+        status: "checked_in",
         worker: {
           id: "worker-3",
           name: "박민수",

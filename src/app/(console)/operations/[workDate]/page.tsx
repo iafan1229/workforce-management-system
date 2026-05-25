@@ -1,7 +1,15 @@
+import Link from "next/link";
 import {
+  ATTENDANCE_STATUS_LABELS,
   toAttendanceListRows,
-  type AttendanceQueryRow,
+  type AttendanceStatus,
 } from "@/features/attendance/types";
+import { listAttendancesByDate } from "@/features/attendance/status-column-compat";
+import {
+  hasActiveAttendanceFilters,
+  matchesTaskTypeFilter,
+  readAttendanceFilterState,
+} from "@/features/operations/attendance-filters";
 import { parseWorkDate } from "@/features/operations/date";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -9,58 +17,90 @@ type OperationsDashboardPageProps = {
   params: Promise<{
     workDate: string;
   }>;
+  searchParams: Promise<{
+    taskTypeId?: string | string[];
+  }>;
 };
 
 type AssignmentRow = {
   worker_id: string;
+  task_type_id: string;
   task_types: { label: string } | { label: string }[] | null;
+};
+
+type TaskTypeRow = {
+  id: string;
+  label: string;
+};
+
+type DashboardAttendanceRow = {
+  id: string;
+  workerId: string | null;
+  name: string;
+  phone: string;
+  status: AttendanceStatus;
+  taskTypeId: string | null;
+  taskTypeLabel: string;
 };
 
 export default async function OperationsDashboardPage({
   params,
+  searchParams,
 }: OperationsDashboardPageProps) {
   const { workDate } = await params;
   const validDate = parseWorkDate(workDate);
+  const filters = readAttendanceFilterState(await searchParams);
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: attendanceData, error: attendanceError }, { data: assignmentData, error: assignmentError }] =
+  const [
+    attendanceData,
+    { data: assignmentData, error: assignmentError },
+    { data: taskTypeData, error: taskTypeError },
+  ] =
     await Promise.all([
-      supabase
-        .from("attendances")
-        .select("id, work_date, workers(id, name, phone)")
-        .eq("work_date", validDate)
-        .order("created_at", { ascending: false }),
+      listAttendancesByDate(supabase, validDate),
       supabase
         .from("assignments")
-        .select("worker_id, task_types(label)")
+        .select("worker_id, task_type_id, task_types(label)")
         .eq("work_date", validDate)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("task_types")
+        .select("id, label")
+        .order("label", { ascending: true }),
     ]);
-
-  if (attendanceError) {
-    throw attendanceError;
-  }
 
   if (assignmentError) {
     throw assignmentError;
   }
 
+  if (taskTypeError) {
+    throw taskTypeError;
+  }
+
   const assignmentMap = new Map(
     ((assignmentData ?? []) as AssignmentRow[]).map((assignment) => [
       assignment.worker_id,
-      readSingleRelation(assignment.task_types)?.label ?? "미배정",
+      {
+        taskTypeId: assignment.task_type_id,
+        taskTypeLabel: readSingleRelation(assignment.task_types)?.label ?? "미배정",
+      },
     ]),
   );
 
-  const attendedWorkers = toAttendanceListRows(
-    (attendanceData ?? []) as AttendanceQueryRow[],
-  ).map((row) => ({
+  const attendedWorkers = toAttendanceListRows(attendanceData).map((row) => ({
     id: row.id,
     workerId: row.worker?.id ?? null,
     name: row.worker?.name ?? "이름 없음",
     phone: row.worker?.phone ?? "전화번호 없음",
-    taskTypeLabel: row.worker ? assignmentMap.get(row.worker.id) ?? "미배정" : "미배정",
+    status: row.status,
+    taskTypeId: row.worker ? assignmentMap.get(row.worker.id)?.taskTypeId ?? null : null,
+    taskTypeLabel:
+      row.worker ? assignmentMap.get(row.worker.id)?.taskTypeLabel ?? "미배정" : "미배정",
   }));
+  const filteredWorkers = sortAttendanceRows(attendedWorkers).filter((worker) =>
+    matchesTaskTypeFilter(worker.taskTypeId, filters.taskTypeId),
+  );
 
   return (
     <main className="space-y-6">
@@ -78,9 +118,40 @@ export default async function OperationsDashboardPage({
           현재 출근/배정 인원
         </h2>
 
-        {attendedWorkers.length === 0 ? (
+        <form method="get" className="mt-6 flex flex-wrap items-end gap-3">
+          <label className="min-w-[220px] flex-1 space-y-2">
+            <span className="text-sm font-medium text-stone-700">배정 필터</span>
+            <select
+              name="taskTypeId"
+              defaultValue={filters.taskTypeId}
+              className="console-select text-sm"
+            >
+              <option value="">전체 배정</option>
+              {((taskTypeData ?? []) as TaskTypeRow[]).map((taskType) => (
+                <option key={taskType.id} value={taskType.id}>
+                  {taskType.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="console-button-primary px-4 py-3 text-sm">
+            검색
+          </button>
+          {hasActiveAttendanceFilters(filters) ? (
+            <Link
+              href={`/operations/${validDate}`}
+              className="console-button-secondary px-4 py-3 text-sm"
+            >
+              초기화
+            </Link>
+          ) : null}
+        </form>
+
+        {filteredWorkers.length === 0 ? (
           <p className="console-status-note mt-6 text-sm text-stone-500">
-            아직 등록된 출근이 없습니다.
+            {hasActiveAttendanceFilters(filters)
+              ? "조건에 맞는 인력이 없습니다."
+              : "아직 등록된 출근이 없습니다."}
           </p>
         ) : (
           <div className="mt-6 overflow-hidden rounded-[1.4rem] border border-white/70 bg-white/70">
@@ -89,16 +160,26 @@ export default async function OperationsDashboardPage({
                 <tr>
                   <th className="px-4 py-3 font-medium">이름</th>
                   <th className="px-4 py-3 font-medium">전화번호</th>
+                  <th className="px-4 py-3 font-medium">상태</th>
                   <th className="px-4 py-3 font-medium">배정</th>
                 </tr>
               </thead>
               <tbody>
-                {attendedWorkers.map((worker) => (
-                  <tr key={worker.id} className="border-t border-stone-200/80">
+                {filteredWorkers.map((worker) => (
+                  <tr
+                    key={worker.id}
+                    data-attendance-status={worker.status}
+                    className={`border-t border-stone-200/80 ${
+                      worker.status === "scheduled" ? "opacity-60" : ""
+                    }`}
+                  >
                     <td className="px-4 py-3 font-medium text-stone-950">
                       {worker.name}
                     </td>
                     <td className="px-4 py-3 text-stone-600">{worker.phone}</td>
+                    <td className="px-4 py-3 text-stone-600">
+                      {ATTENDANCE_STATUS_LABELS[worker.status]}
+                    </td>
                     <td className="px-4 py-3 text-stone-950">
                       {worker.taskTypeLabel}
                     </td>
@@ -115,4 +196,18 @@ export default async function OperationsDashboardPage({
 
 function readSingleRelation<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function sortAttendanceRows(rows: DashboardAttendanceRow[]) {
+  return [...rows].sort((left, right) => {
+    if (left.status === right.status) {
+      return 0;
+    }
+
+    if (left.status === "checked_in") {
+      return -1;
+    }
+
+    return 1;
+  });
 }

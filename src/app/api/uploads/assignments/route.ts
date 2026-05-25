@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { parseWorkDate } from "@/features/operations/date";
+import { upsertAttendances } from "@/features/attendance/status-column-compat";
 import { importAssignmentUpload } from "@/features/uploads/import-assignment-upload";
 import { parseAssignmentWorkbook } from "@/features/uploads/parse-assignment-workbook";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -45,20 +46,33 @@ export async function POST(request: Request) {
 
           return data ?? [];
         },
-        findAttendancesByDate: async (date) => {
-          const { data, error } = await supabase
-            .from("attendances")
-            .select("worker_id, work_date")
-            .eq("work_date", date);
+        createWorkers: async (workers) => {
+          if (workers.length === 0) {
+            return;
+          }
+
+          const { error } = await supabase.from("workers").upsert(workers, {
+            onConflict: "phone",
+            ignoreDuplicates: true,
+          });
 
           if (error) {
             throw error;
           }
-
-          return (data ?? []).map((row) => ({
-            workerId: row.worker_id,
-            workDate: row.work_date,
-          }));
+        },
+        createAttendances: async ({
+          workDate: attendanceWorkDate,
+          workerIds,
+          status,
+        }) => {
+          if (workerIds.length === 0) {
+            return;
+          }
+          await upsertAttendances(supabase, {
+            workDate: attendanceWorkDate,
+            workerIds,
+            status,
+          });
         },
         findTaskTypesByLabels: async (labels) => {
           const { data, error } = await supabase

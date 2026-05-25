@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { registerAttendance } from "@/features/attendance/service";
+import {
+  findAttendanceByWorkerAndDate,
+  insertAttendance,
+  updateAttendanceStatus,
+} from "@/features/attendance/status-column-compat";
 import { getTodayInSeoul } from "@/features/attendance/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -15,6 +20,7 @@ export async function registerAttendanceAction(formData: FormData) {
         name: String(formData.get("name") ?? ""),
         phone: String(formData.get("phone") ?? ""),
         workDate: getTodayInSeoul(),
+        status: "checked_in",
       },
       {
         findWorkerByPhone: async (phone) => {
@@ -43,16 +49,10 @@ export async function registerAttendanceAction(formData: FormData) {
 
           return data;
         },
-        createAttendance: async (input) => {
-          const { error } = await supabase.from("attendances").insert({
-            worker_id: input.workerId,
-            work_date: input.workDate,
-          });
-
-          if (error) {
-            throw error;
-          }
-        },
+        findAttendance: (input) => findAttendanceByWorkerAndDate(supabase, input),
+        createAttendance: (input) => insertAttendance(supabase, input),
+        updateAttendanceStatus: (input) =>
+          updateAttendanceStatus(supabase, input),
       },
     );
   } catch (error) {

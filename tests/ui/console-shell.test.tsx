@@ -33,15 +33,14 @@ describe("ConsoleShell", () => {
       "href",
       "/operations/2026-05-25/attendance",
     );
-    expect(screen.getByRole("link", { name: "인력 조회" })).toHaveAttribute(
-      "href",
-      "/operations/2026-05-25/workers",
-    );
     expect(screen.getByRole("link", { name: "배정표 업로드" })).toHaveAttribute(
       "href",
       "/operations/2026-05-25/upload",
     );
-    expect(screen.getAllByRole("link")).toHaveLength(5);
+    expect(
+      screen.queryByRole("link", { name: "인력 조회" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link")).toHaveLength(4);
     expect(screen.getByRole("link", { name: "출근/배정" })).toHaveAttribute(
       "aria-current",
       "page",

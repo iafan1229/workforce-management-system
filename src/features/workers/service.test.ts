@@ -152,6 +152,58 @@ describe("getWorkerDetailByPhone", () => {
       "2026-05-25",
     );
   });
+
+  it("배정 히스토리용 스킬 목록은 count 많은 순으로 정렬한다", async () => {
+    const service = await loadWorkersService();
+
+    expect(service?.getWorkerDetailByPhone).toBeTypeOf("function");
+
+    if (!service?.getWorkerDetailByPhone) {
+      return;
+    }
+
+    const repo = {
+      findWorkerByPhone: vi.fn().mockResolvedValue({
+        id: "worker-1",
+        name: "김현수",
+        phone: "01012345678",
+        lastAttendanceDate: "2026-05-20",
+      }),
+      findWorkerById: vi.fn(),
+      listWorkerSkills: vi.fn().mockResolvedValue([
+        {
+          taskTypeId: "task-2",
+          label: "피딩",
+          count: 3,
+          updatedAt: "2026-05-18T09:00:00.000Z",
+        },
+        {
+          taskTypeId: "task-1",
+          label: "세척",
+          count: 12,
+          updatedAt: "2026-05-20T09:00:00.000Z",
+        },
+      ]),
+      listRecentAssignments: vi.fn().mockResolvedValue([]),
+      countAttendancesByDate: vi.fn(),
+      countAssignmentsByDate: vi.fn(),
+      findAttendanceByWorkerAndDate: vi.fn(),
+      findAssignmentByWorkerAndDate: vi.fn(),
+    };
+
+    const detail = await service.getWorkerDetailByPhone(
+      "010-1234-5678",
+      repo,
+      { today: "2026-05-21" },
+    );
+
+    expect(
+      detail?.skills.map((skill: { label: string }) => skill.label),
+    ).toEqual([
+      "세척",
+      "피딩",
+    ]);
+  });
 });
 
 describe("getTodayOperationsSummary", () => {

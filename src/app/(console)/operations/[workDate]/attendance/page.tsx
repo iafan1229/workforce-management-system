@@ -1,8 +1,15 @@
 import {
+  ATTENDANCE_STATUS_LABELS,
   toAttendanceListRows,
-  type AttendanceListRow,
-  type AttendanceQueryRow,
+  type AttendanceStatus,
 } from "@/features/attendance/types";
+import { listAttendancesByDate } from "@/features/attendance/status-column-compat";
+import {
+  hasActiveAttendanceFilters,
+  matchesPhoneFilter,
+  matchesTaskTypeFilter,
+  readAttendanceFilterState,
+} from "@/features/operations/attendance-filters";
 import { parseWorkDate } from "@/features/operations/date";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -10,6 +17,7 @@ import {
   registerAttendanceForDateAction,
   saveManualAssignmentAction,
 } from "./actions";
+import Link from "next/link";
 
 type OperationsAttendancePageProps = {
   params: Promise<{
@@ -18,6 +26,8 @@ type OperationsAttendancePageProps = {
   searchParams: Promise<{
     error?: string;
     focusWorkerId?: string;
+    phone?: string | string[];
+    taskTypeId?: string | string[];
   }>;
 };
 
@@ -27,15 +37,13 @@ export default async function OperationsAttendancePage({
 }: OperationsAttendancePageProps) {
   const { workDate } = await params;
   const validDate = parseWorkDate(workDate);
-  const { error, focusWorkerId } = await searchParams;
+  const resolvedSearchParams = await searchParams;
+  const { error, focusWorkerId } = resolvedSearchParams;
+  const filters = readAttendanceFilterState(resolvedSearchParams);
   const supabase = await createSupabaseServerClient();
-  const [{ data: attendanceData, error: attendanceError }, { data: assignmentData, error: assignmentError }, { data: taskTypeData, error: taskTypeError }] =
+  const [attendanceData, { data: assignmentData, error: assignmentError }, { data: taskTypeData, error: taskTypeError }] =
     await Promise.all([
-      supabase
-        .from("attendances")
-        .select("id, work_date, workers(id, name, phone)")
-        .eq("work_date", validDate)
-        .order("created_at", { ascending: false }),
+      listAttendancesByDate(supabase, validDate),
       supabase
         .from("assignments")
         .select("id, worker_id, task_type_id, source, task_types(label)")
@@ -46,10 +54,6 @@ export default async function OperationsAttendancePage({
         .select("id, label")
         .order("label", { ascending: true }),
     ]);
-
-  if (attendanceError) {
-    throw attendanceError;
-  }
 
   if (assignmentError) {
     throw assignmentError;
@@ -71,12 +75,19 @@ export default async function OperationsAttendancePage({
     ]),
   );
 
-  const attendedWorkers = toAttendanceListRows(
-    (attendanceData ?? []) as AttendanceQueryRow[],
-  ).map((row) => ({
+  const attendedWorkers = toAttendanceListRows(attendanceData).map((row) => ({
     ...row,
     assignment: row.worker ? assignmentMap.get(row.worker.id) ?? null : null,
   }));
+  const filteredWorkers = sortAttendanceRows(attendedWorkers).filter((row) => {
+    const phone = row.worker?.phone ?? "";
+    const taskTypeId = row.assignment?.taskTypeId ?? null;
+
+    return (
+      matchesPhoneFilter(phone, filters.phone) &&
+      matchesTaskTypeFilter(taskTypeId, filters.taskTypeId)
+    );
+  });
 
   return (
     <main className="space-y-8">
@@ -87,9 +98,6 @@ export default async function OperationsAttendancePage({
         <h1 className="mt-3 text-[clamp(2.2rem,3vw,3.4rem)] font-semibold tracking-[-0.05em] text-stone-950">
           출근 및 수동 배정
         </h1>
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-stone-600">
-          출근 등록과 현재 배정 상태를 같은 날짜 기준으로 관리합니다.
-        </p>
       </header>
 
       <section className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -98,13 +106,12 @@ export default async function OperationsAttendancePage({
           className="console-panel-strong space-y-4 rounded-[2rem] p-6"
         >
           <input type="hidden" name="workDate" value={validDate} />
+          <input type="hidden" name="searchPhone" value={filters.phone} />
+          <input type="hidden" name="searchTaskTypeId" value={filters.taskTypeId} />
           <div className="space-y-1">
             <h2 className="text-lg font-semibold tracking-[-0.03em] text-stone-950">
               선택 날짜 출근 등록
             </h2>
-            <p className="text-sm leading-7 text-stone-600">
-              신규 인력 생성과 출근 등록을 함께 처리합니다.
-            </p>
           </div>
 
           {error ? (
@@ -136,28 +143,78 @@ export default async function OperationsAttendancePage({
             />
           </label>
 
-          <button className="console-button-primary w-full">
-            출근 등록
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              name="status"
+              value="scheduled"
+              className="console-button-secondary flex-1"
+            >
+              출근예정 등록
+            </button>
+            <button
+              type="submit"
+              name="status"
+              value="checked_in"
+              className="console-button-primary flex-1"
+            >
+              출근완료 등록
+            </button>
+          </div>
         </form>
 
         <section className="console-panel rounded-[2rem] p-6">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold tracking-[-0.03em] text-stone-950">
-              출근자 및 배정 상태
-            </h2>
-            <p className="text-sm leading-7 text-stone-600">
-              선택한 날짜 기준으로 미배정, 배정 저장, 배정 해제를 관리합니다.
-            </p>
-          </div>
+          <h2 className="text-lg font-semibold tracking-[-0.03em] text-stone-950">
+            출근자 및 배정 상태
+          </h2>
 
-          {attendedWorkers.length === 0 ? (
+          <form method="get" className="mt-6 flex flex-wrap items-end gap-3">
+            <label className="min-w-[220px] flex-1 space-y-2">
+              <span className="text-sm font-medium text-stone-700">전화번호 검색</span>
+              <input
+                name="phone"
+                defaultValue={filters.phone}
+                className="console-input"
+                placeholder="예: 5678"
+              />
+            </label>
+            <label className="min-w-[220px] flex-1 space-y-2">
+              <span className="text-sm font-medium text-stone-700">배정 필터</span>
+              <select
+                name="taskTypeId"
+                defaultValue={filters.taskTypeId}
+                className="console-select text-sm"
+              >
+                <option value="">전체 배정</option>
+                {(taskTypeData ?? []).map((taskType) => (
+                  <option key={taskType.id} value={taskType.id}>
+                    {taskType.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="console-button-primary px-4 py-3 text-sm">
+              검색
+            </button>
+            {hasActiveAttendanceFilters(filters) ? (
+              <Link
+                href={`/operations/${validDate}/attendance`}
+                className="console-button-secondary px-4 py-3 text-sm"
+              >
+                초기화
+              </Link>
+            ) : null}
+          </form>
+
+          {filteredWorkers.length === 0 ? (
             <p className="console-status-note mt-6 text-sm text-stone-500">
-              아직 등록된 출근이 없습니다.
+              {hasActiveAttendanceFilters(filters)
+                ? "조건에 맞는 인력이 없습니다."
+                : "아직 등록된 인력이 없습니다."}
             </p>
           ) : (
             <ul className="mt-6 space-y-4">
-              {attendedWorkers.map((row) => (
+              {filteredWorkers.map((row) => (
                 <li
                   key={row.id}
                   className={`rounded-2xl border px-4 py-4 ${
@@ -168,15 +225,22 @@ export default async function OperationsAttendancePage({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="font-medium text-stone-900">
-                        {row.worker?.name ?? "이름 없음"}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-stone-900">
+                          {row.worker?.name ?? "이름 없음"}
+                        </p>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${getAttendanceBadgeClass(row.status)}`}
+                        >
+                          {ATTENDANCE_STATUS_LABELS[row.status]}
+                        </span>
+                      </div>
                       <p className="text-sm text-stone-600">
                         {row.worker?.phone ?? "전화번호 없음"}
                       </p>
                     </div>
                     <div className="text-sm">
-                      <p className="text-stone-500">현재 상태</p>
+                      <p className="text-stone-500">배정 상태</p>
                       <p className="mt-1 font-medium text-stone-900">
                         {row.assignment?.taskTypeLabel ?? "미배정"}
                       </p>
@@ -185,9 +249,21 @@ export default async function OperationsAttendancePage({
 
                   {row.worker ? (
                     <div className="mt-4 flex flex-wrap items-end gap-3">
+                      <Link
+                        href={`/operations/${validDate}/workers/${row.worker.id}`}
+                        className="console-button-secondary rounded-2xl px-4 py-3 text-sm"
+                      >
+                        상세보기
+                      </Link>
                       <form action={saveManualAssignmentAction} className="flex flex-1 flex-wrap items-end gap-3">
                         <input type="hidden" name="workDate" value={validDate} />
                         <input type="hidden" name="workerId" value={row.worker.id} />
+                        <input type="hidden" name="searchPhone" value={filters.phone} />
+                        <input
+                          type="hidden"
+                          name="searchTaskTypeId"
+                          value={filters.taskTypeId}
+                        />
                         <label className="min-w-[220px] flex-1 space-y-2">
                           <span className="text-sm font-medium text-stone-700">
                             업무 카테고리
@@ -218,6 +294,12 @@ export default async function OperationsAttendancePage({
                         <form action={clearManualAssignmentAction}>
                           <input type="hidden" name="workDate" value={validDate} />
                           <input type="hidden" name="workerId" value={row.worker.id} />
+                          <input type="hidden" name="searchPhone" value={filters.phone} />
+                          <input
+                            type="hidden"
+                            name="searchTaskTypeId"
+                            value={filters.taskTypeId}
+                          />
                           <button className="console-button-secondary rounded-2xl px-4 py-3 text-sm">
                             배정 해제
                           </button>
@@ -250,4 +332,30 @@ type AssignmentRow = {
 
 function readSingleRelation<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function sortAttendanceRows<
+  T extends {
+    status: AttendanceStatus;
+  },
+>(rows: T[]) {
+  return [...rows].sort((left, right) => {
+    if (left.status === right.status) {
+      return 0;
+    }
+
+    if (left.status === "checked_in") {
+      return -1;
+    }
+
+    return 1;
+  });
+}
+
+function getAttendanceBadgeClass(status: AttendanceStatus) {
+  if (status === "checked_in") {
+    return "bg-emerald-100 text-emerald-700";
+  }
+
+  return "bg-stone-200 text-stone-600";
 }
