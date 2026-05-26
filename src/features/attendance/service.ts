@@ -1,10 +1,11 @@
 import { normalizePhone } from "@/lib/phone";
+import { parseWorkDate } from "@/features/operations/date";
 import type {
+  AttendanceRecord,
   AttendanceRepository,
   RegisterAttendanceInput,
+  AttendanceStatus,
 } from "@/features/attendance/types";
-
-const WORK_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function registerAttendance(
   input: RegisterAttendanceInput,
@@ -16,7 +17,8 @@ export async function registerAttendance(
     throw new Error("이름을 입력해 주세요.");
   }
 
-  validateWorkDate(input.workDate);
+  validateAttendanceWorkDate(input.workDate);
+  validateAttendanceStatus(input.status);
 
   const normalizedPhone = normalizePhone(input.phone);
   const existingWorker = await repo.findWorkerByPhone(normalizedPhone);
@@ -28,17 +30,46 @@ export async function registerAttendance(
       phone: normalizedPhone,
     }));
 
+  const existingAttendance = await repo.findAttendance({
+    workerId: worker.id,
+    workDate: input.workDate,
+  });
+
+  if (existingAttendance) {
+    await handleExistingAttendance({
+      existingAttendance,
+      nextStatus: input.status,
+      repo,
+    });
+    return;
+  }
+
   try {
     await repo.createAttendance({
       workerId: worker.id,
       workDate: input.workDate,
+      status: input.status,
     });
   } catch (error) {
-    if (isAttendanceConflict(error)) {
-      throw new Error("이미 해당 날짜에 출근 등록된 인력입니다.");
+    if (!isAttendanceConflict(error)) {
+      throw error;
     }
 
-    throw error;
+    const conflictedAttendance = await repo.findAttendance({
+      workerId: worker.id,
+      workDate: input.workDate,
+    });
+
+    if (conflictedAttendance) {
+      await handleExistingAttendance({
+        existingAttendance: conflictedAttendance,
+        nextStatus: input.status,
+        repo,
+      });
+      return;
+    }
+
+    throw new Error(getDuplicateAttendanceMessage(input.status));
   }
 }
 
@@ -68,23 +99,24 @@ async function createWorkerWithRecovery({
   }
 }
 
-function validateWorkDate(workDate: string) {
-  if (!WORK_DATE_PATTERN.test(workDate)) {
-    throw new Error("근무일 형식이 올바르지 않습니다.");
-  }
+function isUniqueViolation(error: unknown) {
+  return readErrorField(error, "code") === "23505";
+}
 
-  const parsedDate = new Date(`${workDate}T00:00:00.000Z`);
-
-  if (
-    Number.isNaN(parsedDate.getTime()) ||
-    parsedDate.toISOString().slice(0, 10) !== workDate
-  ) {
+function validateAttendanceWorkDate(workDate: string) {
+  try {
+    parseWorkDate(workDate);
+  } catch {
     throw new Error("근무일 형식이 올바르지 않습니다.");
   }
 }
 
-function isUniqueViolation(error: unknown) {
-  return readErrorField(error, "code") === "23505";
+function validateAttendanceStatus(status: string): asserts status is AttendanceStatus {
+  if (status === "scheduled" || status === "checked_in") {
+    return;
+  }
+
+  throw new Error("출근 상태 형식이 올바르지 않습니다.");
 }
 
 function isWorkerPhoneConflict(error: unknown) {
@@ -99,6 +131,37 @@ function isAttendanceConflict(error: unknown) {
     constraintName: "attendances_worker_id_work_date_key",
     detailSnippet: "Key (worker_id, work_date)=",
   });
+}
+
+async function handleExistingAttendance({
+  existingAttendance,
+  nextStatus,
+  repo,
+}: {
+  existingAttendance: AttendanceRecord;
+  nextStatus: AttendanceStatus;
+  repo: AttendanceRepository;
+}) {
+  if (
+    existingAttendance.status === "scheduled" &&
+    nextStatus === "checked_in"
+  ) {
+    await repo.updateAttendanceStatus({
+      attendanceId: existingAttendance.id,
+      status: "checked_in",
+    });
+    return;
+  }
+
+  throw new Error(getDuplicateAttendanceMessage(existingAttendance.status));
+}
+
+function getDuplicateAttendanceMessage(status: AttendanceStatus) {
+  if (status === "scheduled") {
+    return "이미 해당 날짜에 출근예정 등록된 인력입니다.";
+  }
+
+  return "이미 해당 날짜에 출근 완료 등록된 인력입니다.";
 }
 
 function matchesUniqueConstraint(

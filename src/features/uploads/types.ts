@@ -1,3 +1,5 @@
+import type { AttendanceStatus } from "@/features/attendance/types";
+
 export type AssignmentUploadCellValue =
   | string
   | number
@@ -25,15 +27,15 @@ export type AssignmentUploadWorker = {
   phone: string;
 };
 
-export type AssignmentUploadAttendance = {
-  workerId: string;
-  workDate: string;
-};
-
 export type AssignmentUploadTaskType = {
   id: string;
   label: string;
 };
+
+export type CreateAssignmentUploadWorkerInput = Pick<
+  AssignmentUploadWorker,
+  "name" | "phone"
+>;
 
 export type ApplyAssignmentBatchRow = {
   workerId: string;
@@ -53,9 +55,14 @@ export type AssignmentUploadRepository = {
   findWorkersByPhones: (
     phones: string[],
   ) => Promise<AssignmentUploadWorker[]>;
-  findAttendancesByDate: (
-    workDate: string,
-  ) => Promise<AssignmentUploadAttendance[]>;
+  createWorkers: (
+    workers: CreateAssignmentUploadWorkerInput[],
+  ) => Promise<void>;
+  createAttendances: (input: {
+    workDate: string;
+    workerIds: string[];
+    status: AttendanceStatus;
+  }) => Promise<void>;
   findTaskTypesByLabels: (
     labels: string[],
   ) => Promise<AssignmentUploadTaskType[]>;

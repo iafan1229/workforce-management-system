@@ -10,7 +10,9 @@ describe("registerAttendance", () => {
         name: "홍길동",
         phone: "01012345678",
       }),
+      findAttendance: vi.fn().mockResolvedValue(null),
       createAttendance: vi.fn().mockResolvedValue({ id: "attendance-1" }),
+      updateAttendanceStatus: vi.fn(),
     };
 
     await registerAttendance(
@@ -18,6 +20,7 @@ describe("registerAttendance", () => {
         name: "  홍길동  ",
         phone: "010-1234-5678",
         workDate: "2026-05-21",
+        status: "checked_in",
       },
       repo,
     );
@@ -30,6 +33,7 @@ describe("registerAttendance", () => {
     expect(repo.createAttendance).toHaveBeenCalledWith({
       workerId: "worker-1",
       workDate: "2026-05-21",
+      status: "checked_in",
     });
   });
 
@@ -41,7 +45,9 @@ describe("registerAttendance", () => {
         phone: "01099998888",
       }),
       createWorker: vi.fn(),
+      findAttendance: vi.fn().mockResolvedValue(null),
       createAttendance: vi.fn().mockResolvedValue({ id: "attendance-9" }),
+      updateAttendanceStatus: vi.fn(),
     };
 
     await registerAttendance(
@@ -49,6 +55,7 @@ describe("registerAttendance", () => {
         name: "다른 이름",
         phone: "010 9999 8888",
         workDate: "2026-05-21",
+        status: "checked_in",
       },
       repo,
     );
@@ -58,6 +65,7 @@ describe("registerAttendance", () => {
     expect(repo.createAttendance).toHaveBeenCalledWith({
       workerId: "worker-9",
       workDate: "2026-05-21",
+      status: "checked_in",
     });
   });
 
@@ -65,7 +73,9 @@ describe("registerAttendance", () => {
     const repo = {
       findWorkerByPhone: vi.fn(),
       createWorker: vi.fn(),
+      findAttendance: vi.fn(),
       createAttendance: vi.fn(),
+      updateAttendanceStatus: vi.fn(),
     };
 
     await expect(
@@ -74,6 +84,7 @@ describe("registerAttendance", () => {
           name: "   ",
           phone: "010-1234-5678",
           workDate: "2026-05-21",
+          status: "checked_in",
         },
         repo,
       ),
@@ -88,7 +99,9 @@ describe("registerAttendance", () => {
     const repo = {
       findWorkerByPhone: vi.fn(),
       createWorker: vi.fn(),
+      findAttendance: vi.fn(),
       createAttendance: vi.fn(),
+      updateAttendanceStatus: vi.fn(),
     };
 
     await expect(
@@ -97,6 +110,7 @@ describe("registerAttendance", () => {
           name: "홍길동",
           phone: "010-1234-5678",
           workDate: "2026-02-30",
+          status: "checked_in",
         },
         repo,
       ),
@@ -122,7 +136,9 @@ describe("registerAttendance", () => {
         message: 'duplicate key value violates unique constraint "workers_phone_key"',
         details: "Key (phone)=(01012345678) already exists.",
       }),
+      findAttendance: vi.fn().mockResolvedValue(null),
       createAttendance: vi.fn().mockResolvedValue({ id: "attendance-2" }),
+      updateAttendanceStatus: vi.fn(),
     };
 
     await registerAttendance(
@@ -130,6 +146,7 @@ describe("registerAttendance", () => {
         name: " 홍길동 ",
         phone: "010-1234-5678",
         workDate: "2026-05-21",
+        status: "checked_in",
       },
       repo,
     );
@@ -139,10 +156,11 @@ describe("registerAttendance", () => {
     expect(repo.createAttendance).toHaveBeenCalledWith({
       workerId: "worker-2",
       workDate: "2026-05-21",
+      status: "checked_in",
     });
   });
 
-  it("중복 출근 unique 충돌은 친화적인 도메인 에러로 바꾼다", async () => {
+  it("출근예정이 있으면 출근완료 등록 시 상태를 승격한다", async () => {
     const repo = {
       findWorkerByPhone: vi.fn().mockResolvedValue({
         id: "worker-9",
@@ -150,13 +168,50 @@ describe("registerAttendance", () => {
         phone: "01099998888",
       }),
       createWorker: vi.fn(),
-      createAttendance: vi.fn().mockRejectedValue({
-        code: "23505",
-        message:
-          'duplicate key value violates unique constraint "attendances_worker_id_work_date_key"',
-        details:
-          "Key (worker_id, work_date)=(worker-9, 2026-05-21) already exists.",
+      findAttendance: vi.fn().mockResolvedValue({
+        id: "attendance-9",
+        workerId: "worker-9",
+        workDate: "2026-05-21",
+        status: "scheduled",
       }),
+      createAttendance: vi.fn(),
+      updateAttendanceStatus: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await registerAttendance(
+      {
+        name: "기존 인력",
+        phone: "010-9999-8888",
+        workDate: "2026-05-21",
+        status: "checked_in",
+      },
+      repo,
+    );
+
+    expect(repo.createAttendance).not.toHaveBeenCalled();
+    expect(repo.updateAttendanceStatus).toHaveBeenCalledWith({
+      attendanceId: "attendance-9",
+      status: "checked_in",
+    });
+    expect(repo.createWorker).not.toHaveBeenCalled();
+  });
+
+  it("같은 날짜에 이미 출근예정이면 다시 예정 등록하지 않는다", async () => {
+    const repo = {
+      findWorkerByPhone: vi.fn().mockResolvedValue({
+        id: "worker-9",
+        name: "기존 인력",
+        phone: "01099998888",
+      }),
+      createWorker: vi.fn(),
+      findAttendance: vi.fn().mockResolvedValue({
+        id: "attendance-9",
+        workerId: "worker-9",
+        workDate: "2026-05-21",
+        status: "scheduled",
+      }),
+      createAttendance: vi.fn(),
+      updateAttendanceStatus: vi.fn(),
     };
 
     await expect(
@@ -165,11 +220,41 @@ describe("registerAttendance", () => {
           name: "기존 인력",
           phone: "010-9999-8888",
           workDate: "2026-05-21",
+          status: "scheduled",
         },
         repo,
       ),
-    ).rejects.toThrowError("이미 해당 날짜에 출근 등록된 인력입니다.");
+    ).rejects.toThrowError("이미 해당 날짜에 출근예정 등록된 인력입니다.");
+  });
 
-    expect(repo.createWorker).not.toHaveBeenCalled();
+  it("같은 날짜에 이미 출근완료면 예정 등록으로 되돌리지 않는다", async () => {
+    const repo = {
+      findWorkerByPhone: vi.fn().mockResolvedValue({
+        id: "worker-9",
+        name: "기존 인력",
+        phone: "01099998888",
+      }),
+      createWorker: vi.fn(),
+      findAttendance: vi.fn().mockResolvedValue({
+        id: "attendance-9",
+        workerId: "worker-9",
+        workDate: "2026-05-21",
+        status: "checked_in",
+      }),
+      createAttendance: vi.fn(),
+      updateAttendanceStatus: vi.fn(),
+    };
+
+    await expect(
+      registerAttendance(
+        {
+          name: "기존 인력",
+          phone: "010-9999-8888",
+          workDate: "2026-05-21",
+          status: "scheduled",
+        },
+        repo,
+      ),
+    ).rejects.toThrowError("이미 해당 날짜에 출근 완료 등록된 인력입니다.");
   });
 });

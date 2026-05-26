@@ -2,6 +2,221 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+}
+
 body {
   font-family: "Pretendard", "Noto Sans KR", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(251, 191, 36, 0.16), transparent 24%),
+    radial-gradient(circle at 85% 18%, rgba(68, 64, 60, 0.08), transparent 18%),
+    linear-gradient(180deg, #f6f1e8 0%, #efe7db 100%);
+  color: #1c1917;
+}
+
+a,
+button,
+input,
+select {
+  transition:
+    color 220ms ease,
+    background-color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
+}
+
+.console-panel {
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 28px 90px -42px rgba(28, 25, 23, 0.34);
+  backdrop-filter: blur(22px);
+}
+
+.console-panel-strong {
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 28px 90px -42px rgba(28, 25, 23, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+.console-button-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #1c1917;
+  padding: 0.95rem 1.4rem;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.console-button-primary:hover {
+  transform: translateY(-2px);
+  background: #292524;
+}
+
+.console-button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(41, 37, 36, 0.18);
+  background: rgba(255, 255, 255, 0.82);
+  padding: 0.95rem 1.4rem;
+  color: #1c1917;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.console-button-secondary:hover {
+  transform: translateY(-2px);
+  border-color: rgba(41, 37, 36, 0.4);
+}
+
+.console-button-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(190, 24, 93, 0.18);
+  background: rgba(255, 241, 242, 0.88);
+  padding: 0.9rem 1.15rem;
+  color: #be123c;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.console-button-danger:hover {
+  transform: translateY(-2px);
+  border-color: rgba(190, 24, 93, 0.36);
+  background: rgba(255, 228, 230, 0.96);
+}
+
+.console-input,
+.console-select {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(87, 83, 78, 0.24);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.9rem 1rem;
+  color: #1c1917;
+  outline: none;
+}
+
+.console-input:focus,
+.console-select:focus {
+  border-color: rgba(28, 25, 23, 0.9);
+  box-shadow: 0 0 0 4px rgba(214, 211, 209, 0.42);
+}
+
+.console-file-input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(87, 83, 78, 0.24);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.55rem 0.75rem;
+  color: #44403c;
+}
+
+.console-file-input::file-selector-button {
+  margin-right: 0.85rem;
+  border: 0;
+  border-radius: 9999px;
+  background: #1c1917;
+  padding: 0.7rem 1rem;
+  color: #fff;
+  font-weight: 600;
+}
+
+.console-soft-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #78716c;
+}
+
+.console-status-note {
+  border-radius: 1rem;
+  border: 1px dashed rgba(87, 83, 78, 0.26);
+  background: rgba(245, 245, 244, 0.72);
+  padding: 1rem 1.1rem;
+}
+
+.console-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(214, 211, 209, 0.9);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(250, 250, 249, 0.9) 100%);
+  padding: 0.9rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 36px -28px rgba(28, 25, 23, 0.45);
+}
+
+.console-action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 6.5rem;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(41, 37, 36, 0.14);
+  background: rgba(255, 255, 255, 0.96);
+  padding: 0.9rem 1rem;
+  color: #1c1917;
+  font-size: 0.92rem;
+  font-weight: 600;
+  box-shadow: 0 16px 32px -28px rgba(28, 25, 23, 0.45);
+}
+
+.console-action-link:hover {
+  transform: translateY(-2px);
+  border-color: rgba(41, 37, 36, 0.24);
+  background: rgba(255, 255, 255, 1);
+}
+
+.console-scheduled-row {
+  background:
+    linear-gradient(90deg, rgba(231, 229, 228, 0.82) 0%, rgba(245, 245, 244, 0.95) 100%);
+}
+
+.console-scheduled-card {
+  background:
+    linear-gradient(180deg, rgba(231, 229, 228, 0.9) 0%, rgba(245, 245, 244, 0.96) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 22px 48px -34px rgba(87, 83, 78, 0.5);
+}
+
+.console-grid-hover {
+  overflow: hidden;
+}
+
+.console-grid-hover img,
+.console-grid-hover .console-image-fill {
+  transition: transform 700ms ease, opacity 700ms ease, filter 700ms ease;
+}
+
+.console-grid-hover:hover img,
+.console-grid-hover:hover .console-image-fill {
+  transform: scale(1.05);
+}
+
+.console-accordion-panel {
+  position: relative;
+  overflow: hidden;
+  min-height: 28rem;
+  border-radius: 2rem;
+  transition: flex 700ms ease, transform 700ms ease;
+}
+
+.console-accordion-panel:hover {
+  transform: translateY(-6px);
 }

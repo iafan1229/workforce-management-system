@@ -29,8 +29,21 @@ export type WorkerAssignment = {
   source: string;
 };
 
+export type WorkerOperationState =
+  | "not_attended"
+  | "attended_unassigned"
+  | "attended_assigned";
+
+export type SelectedDateAssignment = {
+  taskTypeId: string;
+  taskTypeLabel: string;
+  source: string;
+};
+
 export type WorkerDetail = WorkerRecord & {
   status: WorkerStatus;
+  operationState?: WorkerOperationState;
+  selectedDateAssignment?: SelectedDateAssignment | null;
   skills: WorkerSkill[];
   recentAssignments: WorkerAssignment[];
 };
@@ -43,6 +56,14 @@ export type WorkerLookupRepository = {
     workerId: string,
     limit: number,
   ) => Promise<WorkerAssignment[]>;
+  findAttendanceByWorkerAndDate?: (
+    workerId: string,
+    workDate: string,
+  ) => Promise<{ workDate: string } | null>;
+  findAssignmentByWorkerAndDate?: (
+    workerId: string,
+    workDate: string,
+  ) => Promise<SelectedDateAssignment | null>;
 };
 
 export type TodayOperationsRepository = {
@@ -55,6 +76,7 @@ export type WorkersRepository = WorkerLookupRepository &
 
 export type WorkerDetailOptions = {
   today?: string;
+  workDate?: string;
   recentAssignmentLimit?: number;
 };
 
@@ -122,7 +144,10 @@ async function buildWorkerDetail(
   worker: WorkerRecord | null,
   repo: Pick<
     WorkerLookupRepository,
-    "listWorkerSkills" | "listRecentAssignments"
+    | "listWorkerSkills"
+    | "listRecentAssignments"
+    | "findAttendanceByWorkerAndDate"
+    | "findAssignmentByWorkerAndDate"
   >,
   options: WorkerDetailOptions,
 ): Promise<WorkerDetail | null> {
@@ -131,11 +156,19 @@ async function buildWorkerDetail(
   }
 
   const today = options.today ?? getTodayInSeoul();
+  const workDate = options.workDate;
   const recentAssignmentLimit = options.recentAssignmentLimit ?? 5;
   const [skills, recentAssignments] = await Promise.all([
     repo.listWorkerSkills(worker.id),
     repo.listRecentAssignments(worker.id, recentAssignmentLimit),
   ]);
+  const [attendanceForDate, assignmentForDate] =
+    workDate && repo.findAttendanceByWorkerAndDate && repo.findAssignmentByWorkerAndDate
+      ? await Promise.all([
+          repo.findAttendanceByWorkerAndDate(worker.id, workDate),
+          repo.findAssignmentByWorkerAndDate(worker.id, workDate),
+        ])
+      : [null, null];
 
   return {
     ...worker,
@@ -143,7 +176,17 @@ async function buildWorkerDetail(
       lastAttendanceDate: worker.lastAttendanceDate,
       today,
     }),
-    skills,
+    ...(workDate
+      ? {
+          operationState: deriveWorkerOperationState({
+            hasDateContext: true,
+            attendanceForDate,
+            assignmentForDate,
+          }),
+          selectedDateAssignment: assignmentForDate,
+        }
+      : {}),
+    skills: sortWorkerSkills(skills),
     recentAssignments,
   };
 }
@@ -217,6 +260,42 @@ export function createWorkersRepository(
         source: row.source,
       }));
     },
+    findAttendanceByWorkerAndDate: async (workerId, workDate) => {
+      const { data, error } = await supabase
+        .from("attendances")
+        .select("work_date")
+        .eq("worker_id", workerId)
+        .eq("work_date", workDate)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      return data ? { workDate: data.work_date } : null;
+    },
+    findAssignmentByWorkerAndDate: async (workerId, workDate) => {
+      const { data, error } = await supabase
+        .from("assignments")
+        .select("task_type_id, source, task_types(label)")
+        .eq("worker_id", workerId)
+        .eq("work_date", workDate)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      return data
+        ? {
+            taskTypeId: data.task_type_id,
+            taskTypeLabel: readSingleRelation(
+              (data as AssignmentForDateQueryRow).task_types,
+            )?.label ?? "미분류",
+            source: data.source,
+          }
+        : null;
+    },
     countAttendancesByDate: async (workDate) => {
       const { count, error } = await supabase
         .from("attendances")
@@ -244,6 +323,40 @@ export function createWorkersRepository(
   };
 }
 
+function deriveWorkerOperationState({
+  hasDateContext,
+  attendanceForDate,
+  assignmentForDate,
+}: {
+  hasDateContext: boolean,
+  attendanceForDate: { workDate: string } | null;
+  assignmentForDate: SelectedDateAssignment | null;
+}): WorkerOperationState | undefined {
+  if (!hasDateContext) {
+    return undefined;
+  }
+
+  if (!attendanceForDate) {
+    return "not_attended";
+  }
+
+  if (!assignmentForDate) {
+    return "attended_unassigned";
+  }
+
+  return "attended_assigned";
+}
+
+function sortWorkerSkills(skills: WorkerSkill[]) {
+  return [...skills].sort((left, right) => {
+    if (right.count !== left.count) {
+      return right.count - left.count;
+    }
+
+    return right.updatedAt.localeCompare(left.updatedAt);
+  });
+}
+
 type WorkerBaseRow = {
   id: string;
   name: string;
@@ -268,6 +381,12 @@ type WorkerSkillQueryRow = {
 type AssignmentQueryRow = {
   id: string;
   work_date: string;
+  source: string;
+  task_types: RelationValue<LabelRelationRow>;
+};
+
+type AssignmentForDateQueryRow = {
+  task_type_id: string;
   source: string;
   task_types: RelationValue<LabelRelationRow>;
 };

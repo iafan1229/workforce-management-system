@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { parseWorkDate } from "@/features/operations/date";
+import { upsertAttendances } from "@/features/attendance/status-column-compat";
 import { importAssignmentUpload } from "@/features/uploads/import-assignment-upload";
 import { parseAssignmentWorkbook } from "@/features/uploads/parse-assignment-workbook";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const WORK_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const EXPECTED_UPLOAD_ERROR_MESSAGES = new Set([
   "작업일을 선택해 주세요.",
   "작업일 형식이 올바르지 않습니다.",
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get("file");
-    const workDate = parseWorkDate(formData.get("workDate"));
+    const workDate = parseUploadWorkDate(formData.get("workDate"));
 
     if (!(file instanceof File)) {
       return NextResponse.json(
@@ -45,20 +46,33 @@ export async function POST(request: Request) {
 
           return data ?? [];
         },
-        findAttendancesByDate: async (date) => {
-          const { data, error } = await supabase
-            .from("attendances")
-            .select("worker_id, work_date")
-            .eq("work_date", date);
+        createWorkers: async (workers) => {
+          if (workers.length === 0) {
+            return;
+          }
+
+          const { error } = await supabase.from("workers").upsert(workers, {
+            onConflict: "phone",
+            ignoreDuplicates: true,
+          });
 
           if (error) {
             throw error;
           }
-
-          return (data ?? []).map((row) => ({
-            workerId: row.worker_id,
-            workDate: row.work_date,
-          }));
+        },
+        createAttendances: async ({
+          workDate: attendanceWorkDate,
+          workerIds,
+          status,
+        }) => {
+          if (workerIds.length === 0) {
+            return;
+          }
+          await upsertAttendances(supabase, {
+            workDate: attendanceWorkDate,
+            workerIds,
+            status,
+          });
         },
         findTaskTypesByLabels: async (labels) => {
           const { data, error } = await supabase
@@ -104,7 +118,7 @@ export async function POST(request: Request) {
   }
 }
 
-function parseWorkDate(workDateEntry: FormDataEntryValue | null) {
+function parseUploadWorkDate(workDateEntry: FormDataEntryValue | null) {
   if (workDateEntry === null || workDateEntry === "") {
     throw new Error("작업일을 선택해 주세요.");
   }
@@ -113,22 +127,11 @@ function parseWorkDate(workDateEntry: FormDataEntryValue | null) {
     throw new Error("작업일 형식이 올바르지 않습니다.");
   }
 
-  const workDate = workDateEntry.trim();
-
-  if (!WORK_DATE_PATTERN.test(workDate)) {
+  try {
+    return parseWorkDate(workDateEntry.trim());
+  } catch {
     throw new Error("작업일 형식이 올바르지 않습니다.");
   }
-
-  const parsedDate = new Date(`${workDate}T00:00:00.000Z`);
-
-  if (
-    Number.isNaN(parsedDate.getTime()) ||
-    parsedDate.toISOString().slice(0, 10) !== workDate
-  ) {
-    throw new Error("작업일 형식이 올바르지 않습니다.");
-  }
-
-  return workDate;
 }
 
 function getErrorMessage(error: unknown) {

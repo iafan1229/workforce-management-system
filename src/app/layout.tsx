@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
+import { Outfit } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Workforce OS",
@@ -14,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body className="min-h-screen bg-stone-100 text-stone-950">
+      <body className={`${outfit.className} min-h-screen overflow-x-hidden bg-[#f4eee3] text-stone-950`}>
         {children}
       </body>
     </html>
