@@ -341,6 +341,7 @@ function parseAttendanceStatus(entry: FormDataEntryValue | null) {
 
 function readSearchFilters(formData: FormData) {
   return {
+    name: String(formData.get("searchName") ?? "").trim(),
     phone: String(formData.get("searchPhone") ?? "").trim(),
     taskTypeId: String(formData.get("searchTaskTypeId") ?? "").trim(),
   };
@@ -352,6 +353,7 @@ function withError(
   options?: {
     focusWorkerId?: string;
     filters?: {
+      name: string;
       phone: string;
       taskTypeId: string;
     };
@@ -363,6 +365,10 @@ function withError(
 
   if (options?.focusWorkerId) {
     params.set("focusWorkerId", options.focusWorkerId);
+  }
+
+  if (options?.filters?.name) {
+    params.set("name", options.filters.name);
   }
 
   if (options?.filters?.phone) {
@@ -381,6 +387,7 @@ function buildAttendancePath(
   options?: {
     focusWorkerId?: string;
     filters?: {
+      name: string;
       phone: string;
       taskTypeId: string;
     };
@@ -390,6 +397,10 @@ function buildAttendancePath(
 
   if (options?.focusWorkerId) {
     params.set("focusWorkerId", options.focusWorkerId);
+  }
+
+  if (options?.filters?.name) {
+    params.set("name", options.filters.name);
   }
 
   if (options?.filters?.phone) {

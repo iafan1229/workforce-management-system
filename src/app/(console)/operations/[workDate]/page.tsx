@@ -7,8 +7,11 @@ import {
 import { listAttendancesByDate } from "@/features/attendance/status-column-compat";
 import {
   hasActiveAttendanceFilters,
+  matchesNameFilter,
+  matchesPhoneFilter,
   matchesTaskTypeFilter,
   readAttendanceFilterState,
+  sortRowsByTaskTypeAndName,
 } from "@/features/operations/attendance-filters";
 import { parseWorkDate } from "@/features/operations/date";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -18,6 +21,8 @@ type OperationsDashboardPageProps = {
     workDate: string;
   }>;
   searchParams: Promise<{
+    name?: string | string[];
+    phone?: string | string[];
     taskTypeId?: string | string[];
   }>;
 };
@@ -98,8 +103,14 @@ export default async function OperationsDashboardPage({
     taskTypeLabel:
       row.worker ? assignmentMap.get(row.worker.id)?.taskTypeLabel ?? "미배정" : "미배정",
   }));
-  const filteredWorkers = sortAttendanceRows(attendedWorkers).filter((worker) =>
-    matchesTaskTypeFilter(worker.taskTypeId, filters.taskTypeId),
+  const filteredWorkers = sortRowsByTaskTypeAndName(
+    attendedWorkers.filter((worker) => {
+      return (
+        matchesNameFilter(worker.name, filters.name) &&
+        matchesPhoneFilter(worker.phone, filters.phone) &&
+        matchesTaskTypeFilter(worker.taskTypeId, filters.taskTypeId)
+      );
+    }),
   );
 
   return (
@@ -119,6 +130,24 @@ export default async function OperationsDashboardPage({
         </h2>
 
         <form method="get" className="mt-6 flex flex-wrap items-end gap-3">
+          <label className="min-w-[220px] flex-1 space-y-2">
+            <span className="text-sm font-medium text-stone-700">이름 검색</span>
+            <input
+              name="name"
+              defaultValue={filters.name}
+              className="console-input"
+              placeholder="예: 김현"
+            />
+          </label>
+          <label className="min-w-[220px] flex-1 space-y-2">
+            <span className="text-sm font-medium text-stone-700">전화번호 검색</span>
+            <input
+              name="phone"
+              defaultValue={filters.phone}
+              className="console-input"
+              placeholder="예: 5678"
+            />
+          </label>
           <label className="min-w-[220px] flex-1 space-y-2">
             <span className="text-sm font-medium text-stone-700">배정 필터</span>
             <select
@@ -169,9 +198,7 @@ export default async function OperationsDashboardPage({
                   <tr
                     key={worker.id}
                     data-attendance-status={worker.status}
-                    className={`border-t border-stone-200/80 ${
-                      worker.status === "scheduled" ? "opacity-60" : ""
-                    }`}
+                    className={getDashboardRowClass(worker.status)}
                   >
                     <td className="px-4 py-3 font-medium text-stone-950">
                       {worker.name}
@@ -198,16 +225,10 @@ function readSingleRelation<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
 
-function sortAttendanceRows(rows: DashboardAttendanceRow[]) {
-  return [...rows].sort((left, right) => {
-    if (left.status === right.status) {
-      return 0;
-    }
+function getDashboardRowClass(status: AttendanceStatus) {
+  if (status === "scheduled") {
+    return "console-scheduled-row border-t border-stone-200/80";
+  }
 
-    if (left.status === "checked_in") {
-      return -1;
-    }
-
-    return 1;
-  });
+  return "border-t border-stone-200/80";
 }

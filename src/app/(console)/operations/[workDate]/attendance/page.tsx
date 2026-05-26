@@ -6,9 +6,11 @@ import {
 import { listAttendancesByDate } from "@/features/attendance/status-column-compat";
 import {
   hasActiveAttendanceFilters,
+  matchesNameFilter,
   matchesPhoneFilter,
   matchesTaskTypeFilter,
   readAttendanceFilterState,
+  sortRowsByTaskTypeAndName,
 } from "@/features/operations/attendance-filters";
 import { parseWorkDate } from "@/features/operations/date";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -26,6 +28,7 @@ type OperationsAttendancePageProps = {
   searchParams: Promise<{
     error?: string;
     focusWorkerId?: string;
+    name?: string | string[];
     phone?: string | string[];
     taskTypeId?: string | string[];
   }>;
@@ -79,15 +82,26 @@ export default async function OperationsAttendancePage({
     ...row,
     assignment: row.worker ? assignmentMap.get(row.worker.id) ?? null : null,
   }));
-  const filteredWorkers = sortAttendanceRows(attendedWorkers).filter((row) => {
-    const phone = row.worker?.phone ?? "";
-    const taskTypeId = row.assignment?.taskTypeId ?? null;
+  const filteredWorkers = sortRowsByTaskTypeAndName(
+    attendedWorkers
+      .filter((row) => {
+        const name = row.worker?.name ?? "";
+        const phone = row.worker?.phone ?? "";
+        const taskTypeId = row.assignment?.taskTypeId ?? null;
 
-    return (
-      matchesPhoneFilter(phone, filters.phone) &&
-      matchesTaskTypeFilter(taskTypeId, filters.taskTypeId)
-    );
-  });
+        return (
+          matchesNameFilter(name, filters.name) &&
+          matchesPhoneFilter(phone, filters.phone) &&
+          matchesTaskTypeFilter(taskTypeId, filters.taskTypeId)
+        );
+      })
+      .map((row) => ({
+        ...row,
+        name: row.worker?.name ?? "이름 없음",
+        phone: row.worker?.phone ?? "전화번호 없음",
+        taskTypeLabel: row.assignment?.taskTypeLabel ?? "미배정",
+      })),
+  );
 
   return (
     <main className="space-y-8">
@@ -106,6 +120,7 @@ export default async function OperationsAttendancePage({
           className="console-panel-strong space-y-4 rounded-[2rem] p-6"
         >
           <input type="hidden" name="workDate" value={validDate} />
+          <input type="hidden" name="searchName" value={filters.name} />
           <input type="hidden" name="searchPhone" value={filters.phone} />
           <input type="hidden" name="searchTaskTypeId" value={filters.taskTypeId} />
           <div className="space-y-1">
@@ -170,6 +185,15 @@ export default async function OperationsAttendancePage({
 
           <form method="get" className="mt-6 flex flex-wrap items-end gap-3">
             <label className="min-w-[220px] flex-1 space-y-2">
+              <span className="text-sm font-medium text-stone-700">이름 검색</span>
+              <input
+                name="name"
+                defaultValue={filters.name}
+                className="console-input"
+                placeholder="예: 김현"
+              />
+            </label>
+            <label className="min-w-[220px] flex-1 space-y-2">
               <span className="text-sm font-medium text-stone-700">전화번호 검색</span>
               <input
                 name="phone"
@@ -217,11 +241,11 @@ export default async function OperationsAttendancePage({
               {filteredWorkers.map((row) => (
                 <li
                   key={row.id}
-                  className={`rounded-2xl border px-4 py-4 ${
-                    row.worker?.id === focusWorkerId
-                      ? "border-orange-300 bg-orange-50/80"
-                      : "border-white/70 bg-white/65"
-                  }`}
+                  data-attendance-status={row.status}
+                  className={getAttendanceCardClass(
+                    row.status,
+                    row.worker?.id === focusWorkerId,
+                  )}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -240,39 +264,45 @@ export default async function OperationsAttendancePage({
                       </p>
                     </div>
                     <div className="text-sm">
-                      <p className="text-stone-500">배정 상태</p>
-                      <p className="mt-1 font-medium text-stone-900">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">
+                        배정 상태
+                      </p>
+                      <p className="mt-2 inline-flex rounded-full bg-stone-900 px-3 py-1.5 text-sm font-medium text-white">
                         {row.assignment?.taskTypeLabel ?? "미배정"}
                       </p>
                     </div>
                   </div>
 
                   {row.worker ? (
-                    <div className="mt-4 flex flex-wrap items-end gap-3">
+                    <div className="console-action-bar mt-5">
                       <Link
                         href={`/operations/${validDate}/workers/${row.worker.id}`}
-                        className="console-button-secondary rounded-2xl px-4 py-3 text-sm"
+                        className="console-action-link"
                       >
                         상세보기
                       </Link>
-                      <form action={saveManualAssignmentAction} className="flex flex-1 flex-wrap items-end gap-3">
+                      <form
+                        action={saveManualAssignmentAction}
+                        className="grid flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]"
+                      >
                         <input type="hidden" name="workDate" value={validDate} />
                         <input type="hidden" name="workerId" value={row.worker.id} />
+                        <input type="hidden" name="searchName" value={filters.name} />
                         <input type="hidden" name="searchPhone" value={filters.phone} />
                         <input
                           type="hidden"
                           name="searchTaskTypeId"
                           value={filters.taskTypeId}
                         />
-                        <label className="min-w-[220px] flex-1 space-y-2">
-                          <span className="text-sm font-medium text-stone-700">
+                        <label className="min-w-0 space-y-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">
                             업무 카테고리
                           </span>
                           <select
                             name="taskTypeId"
                             required
                             defaultValue={row.assignment?.taskTypeId ?? ""}
-                            className="console-select text-sm"
+                            className="console-select min-w-0 rounded-[1.2rem] border-stone-300/70 bg-white text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]"
                           >
                             <option value="" disabled>
                               업무를 선택하세요
@@ -285,7 +315,7 @@ export default async function OperationsAttendancePage({
                           </select>
                         </label>
 
-                        <button className="console-button-primary rounded-2xl px-4 py-3 text-sm">
+                        <button className="console-button-primary min-w-[112px] rounded-[1.1rem] px-4 py-3 text-sm shadow-[0_16px_36px_-22px_rgba(28,25,23,0.7)]">
                           {row.assignment ? "수정" : "배정하기"}
                         </button>
                       </form>
@@ -294,13 +324,14 @@ export default async function OperationsAttendancePage({
                         <form action={clearManualAssignmentAction}>
                           <input type="hidden" name="workDate" value={validDate} />
                           <input type="hidden" name="workerId" value={row.worker.id} />
+                          <input type="hidden" name="searchName" value={filters.name} />
                           <input type="hidden" name="searchPhone" value={filters.phone} />
                           <input
                             type="hidden"
                             name="searchTaskTypeId"
                             value={filters.taskTypeId}
                           />
-                          <button className="console-button-secondary rounded-2xl px-4 py-3 text-sm">
+                          <button className="console-button-danger">
                             배정 해제
                           </button>
                         </form>
@@ -334,22 +365,16 @@ function readSingleRelation<T>(value: T | T[] | null) {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
 
-function sortAttendanceRows<
-  T extends {
-    status: AttendanceStatus;
-  },
->(rows: T[]) {
-  return [...rows].sort((left, right) => {
-    if (left.status === right.status) {
-      return 0;
-    }
+function getAttendanceCardClass(status: AttendanceStatus, isFocused: boolean) {
+  const focusClass = isFocused
+    ? "border-orange-300 ring-1 ring-orange-200"
+    : "border-white/70";
 
-    if (left.status === "checked_in") {
-      return -1;
-    }
+  if (status === "scheduled") {
+    return `console-scheduled-card rounded-[1.7rem] border px-4 py-4 ${focusClass}`;
+  }
 
-    return 1;
-  });
+  return `rounded-[1.7rem] border bg-white/75 px-4 py-4 shadow-[0_24px_54px_-34px_rgba(28,25,23,0.34)] ${focusClass}`;
 }
 
 function getAttendanceBadgeClass(status: AttendanceStatus) {

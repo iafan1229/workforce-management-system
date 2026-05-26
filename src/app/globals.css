@@ -76,6 +76,25 @@ select {
   border-color: rgba(41, 37, 36, 0.4);
 }
 
+.console-button-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(190, 24, 93, 0.18);
+  background: rgba(255, 241, 242, 0.88);
+  padding: 0.9rem 1.15rem;
+  color: #be123c;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.console-button-danger:hover {
+  transform: translateY(-2px);
+  border-color: rgba(190, 24, 93, 0.36);
+  background: rgba(255, 228, 230, 0.96);
+}
+
 .console-input,
 .console-select {
   width: 100%;
@@ -125,6 +144,55 @@ select {
   border: 1px dashed rgba(87, 83, 78, 0.26);
   background: rgba(245, 245, 244, 0.72);
   padding: 1rem 1.1rem;
+}
+
+.console-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(214, 211, 209, 0.9);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(250, 250, 249, 0.9) 100%);
+  padding: 0.9rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 36px -28px rgba(28, 25, 23, 0.45);
+}
+
+.console-action-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 6.5rem;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(41, 37, 36, 0.14);
+  background: rgba(255, 255, 255, 0.96);
+  padding: 0.9rem 1rem;
+  color: #1c1917;
+  font-size: 0.92rem;
+  font-weight: 600;
+  box-shadow: 0 16px 32px -28px rgba(28, 25, 23, 0.45);
+}
+
+.console-action-link:hover {
+  transform: translateY(-2px);
+  border-color: rgba(41, 37, 36, 0.24);
+  background: rgba(255, 255, 255, 1);
+}
+
+.console-scheduled-row {
+  background:
+    linear-gradient(90deg, rgba(231, 229, 228, 0.82) 0%, rgba(245, 245, 244, 0.95) 100%);
+}
+
+.console-scheduled-card {
+  background:
+    linear-gradient(180deg, rgba(231, 229, 228, 0.9) 0%, rgba(245, 245, 244, 0.96) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 22px 48px -34px rgba(87, 83, 78, 0.5);
 }
 
 .console-grid-hover {
